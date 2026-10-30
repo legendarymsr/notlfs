@@ -3,7 +3,7 @@
 notlfs (not Linux From Scratch): a dead simple Linux. Kernel "catgirls": GNU Linux-libre 6.6.160-gnu (GPL-2.0, no firmware blobs), uname -r 6.6.160-gnu-catgirls, musl, BusyBox, fastfetch with a middle-finger logo, and a TUI "WM": the console boots straight into tmux, with w3m (HTTPS via LibreSSL) for browsing and vis (with Lua syntax highlighting) as $EDITOR.
 
 ```sh
-./build.sh   # -> out/bzImage, out/initramfs.cpio.gz
+./build.sh   # -> out/bzImage, out/initramfs.cpio.xz
 ./run.sh     # boots in QEMU on the serial console with user-mode networking (Ctrl-A X quits QEMU)
 ```
 
@@ -26,3 +26,23 @@ Extras:
 - `git clone https://...` works (curl + LibreSSL).
 - `irssi`, `aerc` (starts the account wizard).
 - `mpv --vo=drm file` plays video on the virtio-gpu display (QEMU window/screendump), e.g. `mpv --vo=drm av://lavfi:testsrc`. `--vo=tct` plays it in the terminal. No audio output.
+
+## v0.8 notes
+
+- **Audio:** static alsa-lib + amixer, mpv built with ALSA; kernel has HDA Intel + generic codec. QEMU gets `intel-hda` + `hda-duplex`.
+  `AUDIO=pa ./run.sh` (or `pipewire`, `alsa`) plays on the host; `AUDIO=wav WAV=out.wav ./run.sh` records the guest audio to a file. Default is `none`.
+- **Fonts/OSD:** fontconfig + DejaVu Sans Mono in `/usr/share/fonts`, so libass and the mpv OSD work.
+- **mpv:** `/etc/mpv/mpv.conf` sets `vo=drm,tct`, `ao=alsa`, `hwdec=no`. DRM needs a real VT: run it from tty1/tty2 in `./run.sh gfx`,
+  or from serial with `openvt -c 3 -s -w -- mpv FILE`. In a terminal (serial/ssh/tmux) use `mpv --vo=tct FILE`.
+- **run.sh:** `./run.sh` = serial console + tmux (default). `./run.sh gfx` also opens a QEMU window: tmux on tty1, a root shell on tty2 (Ctrl-Alt-F2).
+- **Root login:** root has no password (`*` in /etc/shadow). SSH (port 2223 on the host) is **key-only**: put your key in
+  `/root/.ssh/authorized_keys`. The local consoles (serial, tty1, tty2) give a root shell with no login, as before.
+- **Size:** initramfs is now xz, ffmpeg built with `--disable-everything` plus a short list of common decoders/demuxers/parsers.
+  initramfs 38,180,692 B (v0.7, gzip) -> 18,187,460 B (v0.8, xz); mpv binary 24 MB -> 16 MB.
+
+## Build host
+
+`build.sh` checks these first and stops if any are missing:
+curl tar bzip2 xz gzip cpio make gcc flex bison bc perl python3 tic (ncurses) cmake meson ninja pkg-config (pkgconf) go gperf,
+plus hwdata, libelf-dev and libssl-dev. On Debian/Ubuntu:
+`apt install curl bzip2 xz-utils cpio build-essential flex bison bc perl python3 ncurses-bin cmake meson ninja-build pkgconf golang gperf hwdata libelf-dev libssl-dev`

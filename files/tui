@@ -1,5 +1,6 @@
 #!/bin/sh
 # console login: straight into tmux, fall back to a shell
 . /etc/profile
-stty cols ${COLS:-160} rows ${ROWS:-45} 2>/dev/null
-tmux new -A -s main || exec sh
+case $(tty) in /dev/ttyS*|/dev/console) stty cols ${COLS:-160} rows ${ROWS:-45} 2>/dev/null;; esac
+case $(tty) in /dev/tty[0-9]*) S=$(basename $(tty));; *) S=main;; esac
+tmux new -A -s $S || exec sh

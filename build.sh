@@ -2,7 +2,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Build notlfs, a tiny musl + BusyBox Linux: out/bzImage + out/initramfs.cpio.gz
 set -eu
-# needs: ncurses (host tic) cmake curl tar bzip2 xz gcc make flex bison bc libelf-dev cpio gzip
+# host deps are checked below; see README "Build host"
+for t in curl tar bzip2 xz gzip cpio make gcc flex bison bc perl python3 tic cmake meson ninja pkg-config go gperf; do
+  command -v $t >/dev/null 2>&1 || MISSING="${MISSING:-} $t"
+done
+[ -f /usr/share/hwdata/pnp.ids ] || MISSING="${MISSING:-} hwdata"
+[ -f /usr/include/libelf.h ] || MISSING="${MISSING:-} libelf-dev"
+[ -f /usr/include/openssl/ssl.h ] || MISSING="${MISSING:-} libssl-dev"
+if [ -n "${MISSING:-}" ]; then echo "build.sh: missing host tools:$MISSING (see README)" >&2; exit 1; fi
 
 KERNEL=6.6.160
 KERNEL_SHA256=b8334e0dd70d67f05f38d64253c9603501134655d1941616266ed1aedc292828
@@ -127,18 +134,41 @@ mb() { [ -f "$1/_b/.done" ] || (cd "$1" && shift && meson setup _b --native-file
   --default-library=static --prefer-static --buildtype=minsize --wrap-mode=nofallback "$@" && ninja -C _b install && touch _b/.done); }
 
 get https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz FFmpeg-n7.1
-[ -f $SYS/lib/libavcodec.a ] || (cd FFmpeg-n7.1 && ./configure --prefix=$SYS --cc="$CC" --ar="$AR" --ranlib="$RANLIB" --pkg-config=pkg-config \
-  --pkg-config-flags=--static --enable-static --disable-shared --disable-programs --disable-doc --disable-autodetect --disable-x86asm \
-  --disable-network --enable-zlib --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" && make -j$JOBS && make install)
+[ -f FFmpeg-n7.1/.slim ] || (cd FFmpeg-n7.1 && { make distclean >/dev/null 2>&1 || true; } && ./configure --prefix=$SYS --cc="$CC" --ar="$AR" \
+  --ranlib="$RANLIB" --pkg-config=pkg-config --pkg-config-flags=--static --enable-static --disable-shared --disable-programs --disable-doc \
+  --disable-autodetect --disable-x86asm --disable-network --enable-zlib --disable-everything --enable-filters --enable-bsfs \
+  --enable-decoder=h264,hevc,vp8,vp9,mpeg4,mpeg1video,mpeg2video,mjpeg,png,theora,rawvideo,wrapped_avframe,aac,mp3,mp3float,opus,vorbis,flac,ac3,eac3,pcm_s16le,pcm_s24le,pcm_f32le,ass,ssa,subrip,webvtt,movtext \
+  --enable-demuxer=mov,matroska,mp3,ogg,flac,wav,avi,mpegts,mpegps,aac,ass,srt,webvtt,image2,concat \
+  --enable-parser=h264,hevc,vp8,vp9,mpeg4video,mpegvideo,aac,mpegaudio,opus,vorbis,flac,ac3,png,mjpeg \
+  --enable-encoder=png,mjpeg --enable-protocol=file,pipe --enable-indev=lavfi \
+  --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" && make -j$JOBS && make install && touch .slim)
 
 getJ https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz freetype-2.13.3
 mb freetype-2.13.3 -Dbrotli=disabled -Dbzip2=disabled -Dharfbuzz=disabled -Dpng=disabled -Dzlib=disabled
+# ALSA (static, config in /usr/share/alsa), expat + fontconfig (config in /etc/fonts)
+getj https://www.alsa-project.org/files/pub/lib/alsa-lib-1.2.13.tar.bz2 alsa-lib-1.2.13
+[ -f $SYS/lib/libasound.a ] || (cd alsa-lib-1.2.13 && ./configure --prefix=/usr --enable-static --disable-shared --disable-python \
+  --without-debug --disable-topology --disable-ucm && make -j$JOBS && rm -rf ../stage-alsa && make install DESTDIR=$PWD/../stage-alsa \
+  && cp -r ../stage-alsa/usr/include/. $SYS/include/ && cp ../stage-alsa/usr/lib/libasound.a $SYS/lib/ \
+  && sed "s|^prefix=.*|prefix=$SYS|" ../stage-alsa/usr/lib/pkgconfig/alsa.pc > $SYS/lib/pkgconfig/alsa.pc)
+getj https://www.alsa-project.org/files/pub/utils/alsa-utils-1.2.13.tar.bz2 alsa-utils-1.2.13
+[ -f alsa-utils-1.2.13/amixer/amixer ] || (cd alsa-utils-1.2.13 && ./configure --disable-alsamixer --disable-alsaconf --disable-alsaloop \
+  --disable-alsatest --disable-bat --disable-nls --disable-xmlto --disable-rst2man --with-alsa-inc-prefix=$SYS/include \
+  --with-alsa-prefix=$SYS/lib && make -C amixer LDFLAGS="-all-static -L$SYS/lib")
+getJ https://github.com/libexpat/libexpat/releases/download/R_2_6_4/expat-2.6.4.tar.xz expat-2.6.4
+[ -f $SYS/lib/libexpat.a ] || (cd expat-2.6.4 && cfg --without-docbook --without-examples --without-tests --without-xmlwf)
+getJ https://www.freedesktop.org/software/fontconfig/release/fontconfig-2.15.0.tar.xz fontconfig-2.15.0
+[ -f $SYS/lib/libfontconfig.a ] || (cd fontconfig-2.15.0 && meson setup _b --native-file "$OLDPWD/nocmake.ini" --prefix=$SYS --libdir=lib \
+  --default-library=static --prefer-static --buildtype=minsize -Ddoc=disabled -Dtests=disabled -Dtools=disabled -Dnls=disabled \
+  -Dsysconfdir=/etc -Dcache-dir=/var/cache/fontconfig -Ddefault-fonts-dirs=/usr/share/fonts -Dtemplate-dir=/usr/share/fontconfig/conf.avail \
+  && rm -rf ../stage-fc && DESTDIR=$PWD/../stage-fc ninja -C _b install && cp -r ../stage-fc$SYS/. $SYS/)
+
 getJ https://github.com/fribidi/fribidi/releases/download/v1.0.16/fribidi-1.0.16.tar.xz fribidi-1.0.16
 mb fribidi-1.0.16 -Ddocs=false -Dbin=false -Dtests=false
 getJ https://github.com/harfbuzz/harfbuzz/releases/download/10.1.0/harfbuzz-10.1.0.tar.xz harfbuzz-10.1.0
 mb harfbuzz-10.1.0 -Dglib=disabled -Dgobject=disabled -Dcairo=disabled -Dicu=disabled -Dtests=disabled -Ddocs=disabled -Dutilities=disabled -Dfreetype=enabled
 getJ https://github.com/libass/libass/releases/download/0.17.3/libass-0.17.3.tar.xz libass-0.17.3
-[ -f $SYS/lib/libass.a ] || (cd libass-0.17.3 && cfg --disable-fontconfig --disable-require-system-font-provider --disable-asm --disable-libunibreak)
+[ -f libass-0.17.3/.fc ] || (cd libass-0.17.3 && { make distclean >/dev/null 2>&1 || true; } && cfg --enable-fontconfig --disable-asm --disable-libunibreak && touch .fc)
 getJ https://dri.freedesktop.org/libdrm/libdrm-2.4.124.tar.xz libdrm-2.4.124
 mb libdrm-2.4.124 -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Dtests=false -Dman-pages=disabled -Dvalgrind=disabled -Dcairo-tests=disabled
 get https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/v1.4.303.tar.gz Vulkan-Headers-1.4.303
@@ -149,8 +179,8 @@ grep -q stdc++ $SYS/lib/pkgconfig/libplacebo.pc || sed -i "s/^Libs: .*/& -lstdc+
 get https://gitlab.freedesktop.org/emersion/libdisplay-info/-/archive/0.2.0/libdisplay-info-0.2.0.tar.gz libdisplay-info-0.2.0
 mb libdisplay-info-0.2.0
 get https://github.com/mpv-player/mpv/archive/refs/tags/v0.41.0.tar.gz mpv-0.41.0
-mb mpv-0.41.0 -Dlibmpv=false -Dcplayer=true -Dlua=disabled -Djavascript=disabled -Dlibarchive=disabled -Dlibbluray=disabled -Ddvdnav=disabled \
-  -Dcdda=disabled -Dalsa=disabled -Dpulse=disabled -Dpipewire=disabled -Djack=disabled -Dsdl2-audio=disabled -Dopenal=disabled \
+mb mpv-0.41.0 -Dsysconfdir=/etc -Dlibmpv=false -Dcplayer=true -Dlua=disabled -Djavascript=disabled -Dlibarchive=disabled -Dlibbluray=disabled -Ddvdnav=disabled \
+  -Dcdda=disabled -Dalsa=enabled -Dpulse=disabled -Dpipewire=disabled -Djack=disabled -Dsdl2-audio=disabled -Dopenal=disabled \
   -Dx11=disabled -Dwayland=disabled -Dgl=disabled -Dvulkan=disabled -Degl=disabled -Ddrm=enabled -Dgbm=disabled -Dcaca=disabled \
   -Dsixel=disabled -Diconv=disabled -Duchardet=disabled -Drubberband=disabled -Dzimg=disabled -Dlcms2=disabled -Dmanpage-build=disabled -Dhtml-build=disabled
 unset CC AR RANLIB CXX CFLAGS CXXFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
@@ -163,7 +193,8 @@ if [ ! -d linux-$KERNEL ]; then
 fi
 cd linux-$KERNEL
 make defconfig
-./scripts/config --set-str LOCALVERSION "-catgirls" --set-str DEFAULT_HOSTNAME notlfs --set-str EXTRA_FIRMWARE "" --disable DRM_I915 --disable WERROR
+./scripts/config --set-str LOCALVERSION "-catgirls" --set-str DEFAULT_HOSTNAME notlfs --set-str EXTRA_FIRMWARE "" --disable DRM_I915 --disable WERROR \
+  --enable SND_HDA_GENERIC --enable DRM_FBDEV_EMULATION --enable FB --enable FRAMEBUFFER_CONSOLE
 make olddefconfig
 make -j$JOBS bzImage
 cp arch/x86/boot/bzImage "$TOP/out/"
@@ -181,9 +212,17 @@ cp busybox-$BUSYBOX/examples/udhcp/simple.script rootfs/usr/share/udhcpc/default
 cp "$TOP/files/tmux.conf" "$TOP/files/profile" rootfs/etc/
 cp "$TOP/files/w3m-config" rootfs/etc/w3m/config
 cp "$TOP/files/tui" rootfs/bin/tui
+# audio (ALSA config), fonts (fontconfig + DejaVu Sans Mono), mpv defaults
+mkdir -p rootfs/usr/share/alsa rootfs/usr/share/fonts rootfs/etc/mpv rootfs/var/cache/fontconfig
+cp -r stage-alsa/usr/share/alsa/. rootfs/usr/share/alsa/
+cp -r stage-fc/etc/fonts rootfs/etc/ && cp -r stage-fc/usr/share/fontconfig rootfs/usr/share/
+[ -d dejavu-fonts-ttf-2.37 ] || curl -L --retry 3 https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.tar.bz2 | tar xj
+cp dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono.ttf dejavu-fonts-ttf-2.37/LICENSE rootfs/usr/share/fonts/
+cp "$TOP/files/mpv.conf" rootfs/etc/mpv/mpv.conf
 chmod +x rootfs/bin/tui rootfs/usr/share/udhcpc/default.script
 echo 'root:x:0:0:root:/root:/bin/sh' > rootfs/etc/passwd
 echo 'root:*:0:0:99999:7:::' > rootfs/etc/shadow
+printf 'root:x:0:\ntty:x:5:\naudio:x:29:root\nvideo:x:44:root\n' > rootfs/etc/group
 # extras: ssh, git, irc, mail, video
 cp dropbear-2026.94/dropbearmulti rootfs/usr/bin/
 for p in dropbear dbclient dropbearkey scp ssh; do ln -sf dropbearmulti rootfs/usr/bin/$p; done
@@ -194,7 +233,7 @@ for f in rootfs/usr/libexec/git-core/*; do  # dedupe git's builtin copies into s
   if cmp -s "$f" rootfs/usr/bin/git; then ln -sf /usr/bin/git "$f"
   elif cmp -s "$f" rootfs/usr/libexec/git-core/git-remote-http && [ "${f##*/}" != git-remote-http ]; then ln -sf git-remote-http "$f"; fi
 done
-cp irssi-1.4.5/_b/src/fe-text/irssi aerc-0.20.1/aerc mpv-0.41.0/_b/mpv rootfs/usr/bin/
+cp irssi-1.4.5/_b/src/fe-text/irssi aerc-0.20.1/aerc mpv-0.41.0/_b/mpv alsa-utils-1.2.13/amixer/amixer rootfs/usr/bin/
 mkdir -p rootfs/usr/share/aerc && cp -r aerc-0.20.1/config/*.conf aerc-0.20.1/stylesets aerc-0.20.1/templates rootfs/usr/share/aerc/
 mkdir -p rootfs/etc/dropbear rootfs/root/.ssh && chmod 700 rootfs/root/.ssh
 find rootfs/usr -type f -perm -u+x -exec ${CROSS}strip -s {} + 2>/dev/null || true
@@ -211,7 +250,10 @@ cat > rootfs/etc/inittab <<'TAB'
 ::sysinit:/sbin/ip link set lo up
 ::sysinit:/sbin/udhcpc -i eth0 -q -n -t 5
 ::sysinit:/usr/bin/dropbear -R -s
+::sysinit:/bin/sh -c "amixer -q sset Master 80% unmute; amixer -q sset PCM 80% unmute" >/dev/null 2>&1
 ::respawn:-/bin/tui
+tty1::respawn:-/bin/tui
+tty2::respawn:/sbin/getty -n -l /bin/sh 0 tty2
 ::ctrlaltdel:/sbin/reboot
 TAB
 
@@ -227,5 +269,6 @@ OS
 
 # 5. initramfs
 cd rootfs
-find . | cpio -o -H newc -R 0:0 | gzip -9 > "$TOP/out/initramfs.cpio.gz"
-echo "Done: out/bzImage out/initramfs.cpio.gz"
+rm -f "$TOP/out/initramfs.cpio.gz"
+find . | cpio -o -H newc -R 0:0 | xz -9e --check=crc32 > "$TOP/out/initramfs.cpio.xz"
+echo "Done: out/bzImage out/initramfs.cpio.xz"
