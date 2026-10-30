@@ -1,0 +1,3 @@
+#!/bin/sh
+mkdir -p /root/music /root/.mpd/playlists
+exec mpd --no-daemon --stderr /etc/mpd.conf 2>&1

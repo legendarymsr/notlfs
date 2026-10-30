@@ -1,0 +1,63 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# notlfs-install [-y] /dev/sdX : WIPES the disk, makes one MBR ext4 partition,
+# copies the running system onto it and installs extlinux (BIOS boot).
+set -e
+Y=; [ "$1" = -y ] && { Y=1; shift; }
+D=$1
+[ -b "$D" ] || { echo "usage: notlfs-install [-y] /dev/sdX   (disks: $(ls /sys/block | grep -v -e loop -e ram -e sr | tr '\n' ' '))"; exit 1; }
+case $D in *[0-9]) P=${D}p1;; *) P=${D}1;; esac
+if [ -z "$Y" ]; then printf 'This erases everything on %s. Type yes: ' "$D"; read a; [ "$a" = yes ] || exit 1; fi
+
+# kernel: from the boot ISO, or /boot/bzImage, or $KERNEL
+K=${KERNEL:-}
+if [ -z "$K" ]; then
+  for c in /boot/bzImage /mnt/media/boot/bzImage; do [ -f $c ] && K=$c && break; done
+fi
+if [ -z "$K" ]; then
+  mkdir -p /mnt/media
+  for s in /dev/sr0 /dev/sr1; do [ -b $s ] && mount -t iso9660 -o ro $s /mnt/media 2>/dev/null && break; done
+  [ -f /mnt/media/boot/bzImage ] && K=/mnt/media/boot/bzImage
+fi
+[ -n "$K" ] || { echo "no kernel found: boot the ISO or set KERNEL=/path/to/bzImage"; exit 1; }
+
+echo ">> partitioning $D"
+umount $P 2>/dev/null || true
+dd if=/dev/zero of=$D bs=1M count=4 2>/dev/null
+printf 'o\nn\np\n1\n2048\n\na\n1\nw\n' | fdisk $D >/dev/null 2>&1 || true
+SIG=$(hexdump -n 4 -e '1/4 "%08x"' /dev/urandom)
+printf "\\x${SIG:6:2}\\x${SIG:4:2}\\x${SIG:2:2}\\x${SIG:0:2}" | dd of=$D bs=1 seek=440 conv=notrunc 2>/dev/null
+dd if=/usr/share/syslinux/mbr.bin of=$D bs=440 count=1 conv=notrunc 2>/dev/null
+blockdev --rereadpt $D 2>/dev/null || true
+i=0; while [ ! -b $P ] && [ $i -lt 20 ]; do sleep 0.2; i=$((i+1)); done
+[ -b $P ] || { echo "partition $P did not appear"; exit 1; }
+
+echo ">> formatting $P (ext4)"
+mke2fs -q -F -t ext4 -O ^64bit,^metadata_csum -L notlfs $P
+T=/mnt/target; mkdir -p $T; mount -t ext4 $P $T
+
+echo ">> copying the system"
+for d in /*; do
+  case $d in /proc|/sys|/dev|/run|/tmp|/mnt|/media|/lost+found|/init) continue;; esac
+  cp -a $d $T/
+done
+mkdir -p $T/proc $T/sys $T/dev $T/run $T/tmp $T/mnt $T/boot/syslinux
+chmod 1777 $T/tmp
+cp $K $T/boot/bzImage
+
+PU=$SIG-01
+echo "PARTUUID=$PU / ext4 rw,noatime 0 1" > $T/etc/fstab
+
+echo ">> installing extlinux"
+cp /usr/share/syslinux/*.c32 $T/boot/syslinux/
+cat > $T/boot/syslinux/syslinux.cfg <<CFG
+DEFAULT notlfs
+PROMPT 0
+TIMEOUT 30
+LABEL notlfs
+  LINUX /boot/bzImage
+  APPEND root=PARTUUID=$PU rootwait rw init=/sbin/init console=tty1 console=ttyS0 loglevel=4
+CFG
+extlinux --install $T/boot/syslinux >/dev/null
+sync; umount $T
+echo ">> done: $D is bootable (BIOS). Remove the ISO and reboot."

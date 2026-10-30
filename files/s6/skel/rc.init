@@ -1,0 +1,15 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# notlfs stage 2: one-shot setup. s6-svscan is already running the services in /run/service.
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mkdir -p /dev/pts /dev/shm
+mount -t devpts devpts /dev/pts
+mount -o remount,rw / 2>/dev/null
+mount -a 2>/dev/null
+mkdir -p /var/log /tmp
+hostname -F /etc/hostname
+ip link set lo up
+echo "Welcome to notlfs (s6)"
+(amixer -q sset Master 80% unmute; amixer -q sset PCM 80% unmute) >/dev/null 2>&1 &
+exit 0

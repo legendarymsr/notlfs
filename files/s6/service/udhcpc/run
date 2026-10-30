@@ -1,0 +1,2 @@
+#!/bin/sh
+exec udhcpc -f -i eth0 -S 2>&1

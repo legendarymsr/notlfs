@@ -3,7 +3,7 @@
 # Build notlfs, a tiny musl + BusyBox Linux: out/bzImage + out/initramfs.cpio.gz
 set -eu
 # host deps are checked below; see README "Build host"
-for t in curl tar bzip2 xz gzip cpio make gcc flex bison bc perl python3 tic cmake meson ninja pkg-config go gperf; do
+for t in xorriso autoreconf cargo curl tar bzip2 xz gzip cpio make gcc flex bison bc perl python3 tic cmake meson ninja pkg-config go gperf; do
   command -v $t >/dev/null 2>&1 || MISSING="${MISSING:-} $t"
 done
 [ -f /usr/share/hwdata/pnp.ids ] || MISSING="${MISSING:-} hwdata"
@@ -185,6 +185,101 @@ mb mpv-0.41.0 -Dsysconfdir=/etc -Dlibmpv=false -Dcplayer=true -Dlua=disabled -Dj
   -Dsixel=disabled -Diconv=disabled -Duchardet=disabled -Drubberband=disabled -Dzimg=disabled -Dlcms2=disabled -Dmanpage-build=disabled -Dhtml-build=disabled
 unset CC AR RANLIB CXX CFLAGS CXXFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
 
+# 2h. s6 init (skalibs, execline, s6, s6-linux-init), disk tools (mke2fs), extlinux
+export CC="${CROSS}gcc" AR="${CROSS}ar" RANLIB="${CROSS}ranlib" STRIP="${CROSS}strip"
+SK="--with-sysdeps=$SYS/lib/skalibs/sysdeps --with-include=$SYS/include --with-lib=$SYS/lib/skalibs --with-lib=$SYS/lib/execline --with-lib=$SYS/lib/s6 --enable-static-libc --disable-shared"
+get https://skarnet.org/software/skalibs/skalibs-2.14.4.0.tar.gz skalibs-2.14.4.0
+[ -f $SYS/lib/skalibs/libskarnet.a ] || (cd skalibs-2.14.4.0 && ./configure --prefix=$SYS --libdir=$SYS/lib/skalibs --sysdepdir=$SYS/lib/skalibs/sysdeps --disable-shared && make -j$JOBS && make install)
+[ -f stage-s6/usr/bin/s6-linux-init-maker ] || for p in execline-2.9.7.0 s6-2.13.2.0 s6-linux-init-1.1.3.0; do
+  n=${p%-*}; get https://skarnet.org/software/$n/$p.tar.gz $p
+  (cd $p && { [ -f config.mak ] || ./configure --prefix=/usr --exec-prefix=/usr --bindir=/usr/bin --libdir=$SYS/lib/$n --includedir=$SYS/include --dynlibdir=/usr/lib $SK; } \
+    && make -j$JOBS && make install-lib install-include DESTDIR= && make install-bin DESTDIR=$OLDPWD/stage-s6)
+done
+unset STRIP
+get https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v1.47.1/e2fsprogs-1.47.1.tar.gz e2fsprogs-1.47.1
+[ -f e2fsprogs-1.47.1/misc/mke2fs ] || (cd e2fsprogs-1.47.1 && LDFLAGS=-static ./configure --disable-nls --disable-elf-shlibs --disable-fuse2fs \
+  --disable-defrag --disable-uuidd --disable-debugfs --disable-imager --disable-resizer --without-libarchive && make -j$JOBS LDFLAGS=-static)
+# syslinux 6.03: prebuilt BIOS loader files from the release tarball, extlinux installer rebuilt static against musl
+get https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz syslinux-6.03
+[ -f syslinux-6.03/extlinux-static ] || (cd syslinux-6.03/libinstaller && B=../bios && perl bin2c.pl syslinux_bootsect < $B/core/ldlinux.bss > bootsect_bin.c \
+  && perl bin2c.pl syslinux_ldlinux 512 < $B/core/ldlinux.sys > ldlinux_bin.c && perl bin2c.pl syslinux_ldlinuxc32 < $B/com32/elflink/ldlinux/ldlinux.c32 > ldlinuxc32_bin.c \
+  && $CC -Os -static -include sys/sysmacros.h -D_FILE_OFFSET_BITS=64 -I. -I.. -I../libfat -I../bios -I../extlinux -I../com32/include/sys -I../../e2fsprogs-1.47.1/lib \
+     -Wno-implicit-function-declaration -o ../extlinux-static ../extlinux/main.c ../extlinux/mountinfo.c syslxmod.c syslxopt.c syslxcom.c setadv.c advio.c \
+     bootsect_bin.c ldlinux_bin.c ldlinuxc32_bin.c ../../e2fsprogs-1.47.1/lib/libuuid.a)
+unset CC AR RANLIB
+
+# 2i. TUI tools: htop, nnn, lf, btop / boost / fmt, mpd, ncmpcpp / newsboat (needs rustup's x86_64-unknown-linux-musl target)
+(
+export CC="${CROSS}gcc" CXX="${CROSS}g++" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
+export CFLAGS="-Os -I$SYS/include -I$SYS/include/ncursesw" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
+get() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xz; }; }
+getJ() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xJ; }; }
+getJ https://github.com/htop-dev/htop/releases/download/3.3.0/htop-3.3.0.tar.xz htop-3.3.0
+[ -f htop-3.3.0/htop ] || (cd htop-3.3.0 && ./configure --enable-static --enable-unicode --disable-sensors --disable-capabilities --disable-delayacct \
+  LIBS="-lncursesw" HTOP_NCURSES_CONFIG_SCRIPT=/bin/false && make -j$JOBS)
+get https://github.com/void-linux/musl-fts/archive/refs/tags/v1.2.7.tar.gz musl-fts-1.2.7
+[ -f $SYS/lib/libfts.a ] || (cd musl-fts-1.2.7 && touch config.h && $CC -Os -DHAVE_DIRFD -DHAVE_DECL_MAX=1 -DHAVE_DECL_UINTMAX_MAX=1 -include stdint.h -include sys/param.h -I. -c fts.c && $AR rcs $SYS/lib/libfts.a fts.o && cp fts.h $SYS/include/)
+get https://github.com/jarun/nnn/archive/refs/tags/v5.0.tar.gz nnn-5.0
+[ -f nnn-5.0/nnn ] || (cd nnn-5.0 && make -j$JOBS O_NORL=1 O_NOMAGIC=1 O_NOX11=1 CFLAGS_CURSES="-I$SYS/include/ncursesw" LDLIBS_CURSES="-lncursesw -lfts" LDFLAGS="$LDFLAGS" CFLAGS="$CFLAGS")
+get https://github.com/gokcehan/lf/archive/refs/tags/r33.tar.gz lf-r33
+[ -f lf-r33/lf ] || (cd lf-r33 && CC= CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o lf .)
+get https://github.com/aristocratos/btop/archive/refs/tags/v1.4.0.tar.gz btop-1.4.0
+[ -f btop-1.4.0/bin/btop ] || (cd btop-1.4.0 && CFLAGS= LDFLAGS= make -j$JOBS STATIC=true GPU_SUPPORT=false CXX="$CXX" ADDFLAGS="-static")
+)
+[ -f $SYS/lib/libboost_locale.a ] || (
+[ -d boost_1_83_0 ] || curl -L --retry 3 https://archives.boost.io/release/1.83.0/source/boost_1_83_0.tar.bz2 | tar xj
+cd boost_1_83_0
+[ -f b2 ] || ./bootstrap.sh --with-libraries=program_options,filesystem,locale,regex,thread,system,date_time,atomic
+./b2 -j8 --user-config=user-config.jam toolset=gcc-musl target-os=linux link=static runtime-link=static variant=release \
+  threading=multi boost.locale.icu=off boost.locale.iconv=on boost.locale.posix=on cxxflags=-Os --prefix=$SYS install >/dev/null
+)
+(
+export CC="${CROSS}gcc" CXX="${CROSS}g++" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
+export BOOST_ROOT=$SYS BOOST_INCLUDEDIR=$SYS/include BOOST_LIBRARYDIR=$SYS/lib
+export CFLAGS="-Os -I$SYS/include" CXXFLAGS="-Os -I$SYS/include" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
+get() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xz; }; }
+getJ() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xJ; }; }
+mb() { [ -f "$1/_b/.done" ] || (cd "$1" && shift && meson setup _b --native-file "$OLDPWD/nocmake.ini" --prefix=$SYS --libdir=lib \
+  --default-library=static --prefer-static --buildtype=minsize --wrap-mode=nofallback "$@" && ninja -C _b install && touch _b/.done); }
+get https://github.com/fmtlib/fmt/archive/refs/tags/10.2.1.tar.gz fmt-10.2.1
+[ -f $SYS/lib/libfmt.a ] || (cmake -S fmt-10.2.1 -B fmt-build -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_INSTALL_PREFIX=$SYS -DCMAKE_INSTALL_LIBDIR=lib \
+  -DFMT_TEST=OFF -DFMT_DOC=OFF -DCMAKE_BUILD_TYPE=MinSizeRel && cmake --build fmt-build -j$JOBS && cmake --install fmt-build)
+getJ https://www.musicpd.org/download/libmpdclient/2/libmpdclient-2.22.tar.xz libmpdclient-2.22
+mb libmpdclient-2.22 -Ddocumentation=false -Dtest=false
+getJ https://www.musicpd.org/download/mpd/0.23/mpd-0.23.17.tar.xz mpd-0.23.17
+[ -f mpd-0.23.17/_b/mpd ] || (cd mpd-0.23.17 && meson setup _b --native-file ../nocmake.ini --prefix=/usr --sysconfdir=/etc --default-library=static --prefer-static \
+  --buildtype=minsize --wrap-mode=nofallback -Dauto_features=disabled -Dalsa=enabled -Dffmpeg=enabled -Dfifo=true -Dpipe=true -Dhttpd=false -Drecorder=false \
+  -Ddatabase=true -Dtcp=true -Dlocal_socket=true -Ddocumentation=disabled -Dtest=false -Dsystemd=disabled -Dio_uring=disabled -Dzlib=enabled \
+  -Dcpp_link_args="-static -L$SYS/lib" && ninja -C _b)
+get https://ftp.gnu.org/gnu/readline/readline-8.2.tar.gz readline-8.2
+[ -f $SYS/lib/libreadline.a ] || (cd readline-8.2 && ./configure --prefix=$SYS --disable-shared --enable-static --with-curses && make -j$JOBS && make install)
+get https://github.com/ncmpcpp/ncmpcpp/archive/refs/tags/0.10.1.tar.gz ncmpcpp-0.10.1
+[ -f ncmpcpp-0.10.1/src/ncmpcpp ] || (cd ncmpcpp-0.10.1 && { [ -f configure ] || autoreconf -fi; } && CPPFLAGS="-I$SYS/include -I$SYS/include/ncursesw" ncursesw_CFLAGS="-I$SYS/include/ncursesw" ncursesw_LIBS="-lncursesw" libmpdclient_CFLAGS="-I$SYS/include" libmpdclient_LIBS="-lmpdclient" LIBS="-lreadline -lncursesw" ./configure --disable-shared --enable-static --with-boost=$SYS --without-fftw --without-taglib --disable-outputs --disable-clock --enable-static-boost=yes && make -j$JOBS CXXFLAGS="-Os -fno-lto -std=c++20 -I$SYS/include" LDFLAGS="-static -all-static -fno-lto -L$SYS/lib")
+)
+(
+export CC="${CROSS}gcc" CXX="${CROSS}g++" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
+export CFLAGS="-Os -I$SYS/include" CXXFLAGS="-Os -I$SYS/include -I$SYS/include/ncursesw" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
+get() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xz; }; }
+getJ() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xJ; }; }
+cfg() { ./configure --prefix=$SYS --disable-shared --enable-static "$@"; make -j$JOBS; make install; }
+pc() { printf 'prefix=%s\nName: %s\nDescription: %s\nVersion: %s\nCflags: %s\nLibs: %s\n' "$SYS" "$1" "$1" "$2" "$3" "$4" > $SYS/lib/pkgconfig/$1.pc; }
+[ -f $SYS/lib/pkgconfig/ncursesw.pc ] || pc ncursesw 6.5 "-I$SYS/include/ncursesw -I$SYS/include" "-L$SYS/lib -lncursesw"
+get https://www.sqlite.org/2024/sqlite-autoconf-3470200.tar.gz sqlite-autoconf-3470200
+[ -f $SYS/lib/libsqlite3.a ] || (cd sqlite-autoconf-3470200 && cfg --disable-readline)
+getJ https://download.gnome.org/sources/libxml2/2.13/libxml2-2.13.5.tar.xz libxml2-2.13.5
+[ -f $SYS/lib/libxml2.a ] || (cd libxml2-2.13.5 && cfg --without-python --without-lzma --without-icu --with-zlib=$SYS)
+get https://s3.amazonaws.com/json-c_releases/releases/json-c-0.18.tar.gz json-c-0.18
+[ -f $SYS/lib/libjson-c.a ] || (cmake -S json-c-0.18 -B jsonc-build -DCMAKE_C_COMPILER=$CC -DCMAKE_INSTALL_PREFIX=$SYS -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -DBUILD_APPS=OFF && cmake --build jsonc-build -j$JOBS && cmake --install jsonc-build)
+get https://github.com/newsboat/stfl/archive/refs/heads/master.tar.gz stfl-master
+[ -f $SYS/lib/libstfl.a ] || (cd stfl-master && make libstfl.a CC="$CC" AR="$AR" CFLAGS="-Os -I. -I$SYS/include/ncursesw -I$SYS/include -D_GNU_SOURCE -fPIC" && cp libstfl.a $SYS/lib/ && cp stfl.h $SYS/include/)
+pc stfl 0.24 "-I$SYS/include" "-L$SYS/lib -lstfl -lncursesw"
+[ -f newsboat-2.41/newsboat ] || (cd newsboat-2.41
+export PATH=$HOME/.cargo/bin:$PATH CARGO_BUILD_TARGET=x86_64-unknown-linux-musl CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=$CC
+printf '#!/bin/sh\nexec pkg-config --static "$@"\n' > ../pkgconf-static && chmod +x ../pkgconf-static
+export PKG_CONFIG=$PWD/../pkgconf-static
+make -j$JOBS newsboat CARGO_FLAGS="--target x86_64-unknown-linux-musl")
+)
+
 # 3. GNU Linux-libre kernel (GPL-2.0, no blobs)
 if [ ! -d linux-$KERNEL ]; then
   curl -LO https://linux-libre.fsfla.org/pub/linux-libre/releases/$KERNEL-gnu/linux-libre-$KERNEL-gnu.tar.xz
@@ -211,7 +306,7 @@ cp cacert.pem rootfs/etc/ssl/cert.pem
 cp busybox-$BUSYBOX/examples/udhcp/simple.script rootfs/usr/share/udhcpc/default.script
 cp "$TOP/files/tmux.conf" "$TOP/files/profile" rootfs/etc/
 cp "$TOP/files/w3m-config" rootfs/etc/w3m/config
-cp "$TOP/files/tui" rootfs/bin/tui
+cp "$TOP/files/tui" rootfs/bin/tui && cp "$TOP/files/rootsh" rootfs/bin/rootsh
 # audio (ALSA config), fonts (fontconfig + DejaVu Sans Mono), mpv defaults
 mkdir -p rootfs/usr/share/alsa rootfs/usr/share/fonts rootfs/etc/mpv rootfs/var/cache/fontconfig
 cp -r stage-alsa/usr/share/alsa/. rootfs/usr/share/alsa/
@@ -235,27 +330,33 @@ for f in rootfs/usr/libexec/git-core/*; do  # dedupe git's builtin copies into s
 done
 cp irssi-1.4.5/_b/src/fe-text/irssi aerc-0.20.1/aerc mpv-0.41.0/_b/mpv alsa-utils-1.2.13/amixer/amixer alsa-utils-1.2.13/aplay/aplay rootfs/usr/bin/
 mkdir -p rootfs/usr/share/aerc && cp -r aerc-0.20.1/config/*.conf aerc-0.20.1/stylesets aerc-0.20.1/templates rootfs/usr/share/aerc/
+# TUI tools: htop, btop, nnn, lf, mpd + ncmpcpp, newsboat
+cp htop-3.3.0/htop btop-1.4.0/bin/btop nnn-5.0/nnn lf-r33/lf mpd-0.23.17/_b/mpd ncmpcpp-0.10.1/src/ncmpcpp rootfs/usr/bin/
+[ -f newsboat-2.41/newsboat ] && cp newsboat-2.41/newsboat rootfs/usr/bin/
+cp "$TOP/files/mpd.conf" rootfs/etc/mpd.conf
+# lf (tcell) shells out to infocmp for terms it does not know; tmux-256color is one, screen-256color is built in
+mv rootfs/usr/bin/lf rootfs/usr/bin/lf.bin && printf '#!/bin/sh\ncase $TERM in tmux*) TERM=screen-256color;; esac\nexec lf.bin "$@"\n' > rootfs/usr/bin/lf && chmod +x rootfs/usr/bin/lf
+mkdir -p rootfs/root/.newsboat && echo "https://github.com/legendarymsr.atom \"~legendarymsr on GitHub\"" > rootfs/root/.newsboat/urls
 mkdir -p rootfs/etc/dropbear rootfs/root/.ssh && chmod 700 rootfs/root/.ssh
 find rootfs/usr -type f -perm -u+x -exec ${CROSS}strip -s {} + 2>/dev/null || true
 for app in $(rootfs/bin/busybox --list-full); do ln -sf /bin/busybox "rootfs/$app" 2>/dev/null || true; done
-ln -sf bin/busybox rootfs/init
-cat > rootfs/etc/inittab <<'TAB'
-::sysinit:/bin/mount -t proc proc /proc
-::sysinit:/bin/mount -t sysfs sys /sys
-::sysinit:/bin/mount -t devtmpfs dev /dev
-::sysinit:/bin/mkdir -p /dev/pts
-::sysinit:/bin/mount -t devpts devpts /dev/pts
-::sysinit:/bin/echo "Welcome to notlfs"
-::sysinit:/bin/hostname notlfs
-::sysinit:/sbin/ip link set lo up
-::sysinit:/sbin/udhcpc -i eth0 -q -n -t 5
-::sysinit:/usr/bin/dropbear -R -s
-::sysinit:/bin/sh -c "amixer -q sset Master 80% unmute; amixer -q sset PCM 80% unmute" >/dev/null 2>&1
-::respawn:-/bin/tui
-tty1::respawn:-/bin/tui
-tty2::respawn:/sbin/getty -n -l /bin/sh 0 tty2
-::ctrlaltdel:/sbin/reboot
-TAB
+# s6 as init: s6-linux-init-maker writes /etc/s6-linux-init/current, our services go in its run-image
+cp -a stage-s6/usr/bin/. rootfs/usr/bin/
+rm -f rootfs/sbin/init rootfs/sbin/halt rootfs/sbin/poweroff rootfs/sbin/reboot rootfs/linuxrc
+mkdir -p rootfs/etc/s6-linux-init rootfs/run rootfs/var/log rootfs/mnt
+rm -rf s6-current && stage-s6/usr/bin/s6-linux-init-maker -c /etc/s6-linux-init/current -p /usr/bin:/usr/sbin:/bin:/sbin -1 \
+  -f "$TOP/files/s6/skel" -D default s6-current
+cp -a "$TOP/files/s6/service/." s6-current/run-image/service/
+cp -a s6-current rootfs/etc/s6-linux-init/current
+for b in init halt poweroff reboot shutdown telinit; do ln -sf /etc/s6-linux-init/current/bin/$b rootfs/sbin/$b; done
+# initramfs /init: the kernel only auto-mounts devtmpfs for a disk root, so do it here, then hand off to s6
+printf '#!/bin/sh\nmount -t devtmpfs dev /dev 2>/dev/null\nexec /sbin/init "$@"\n' > rootfs/init && chmod +x rootfs/init
+# disk install: mke2fs, extlinux, syslinux BIOS modules, the installer
+rm -f rootfs/sbin/mke2fs rootfs/sbin/mkfs.ext2 && cp e2fsprogs-1.47.1/misc/mke2fs rootfs/sbin/ && ln -sf mke2fs rootfs/sbin/mkfs.ext4
+cp syslinux-6.03/extlinux-static rootfs/sbin/extlinux && ${CROSS}strip -s rootfs/sbin/mke2fs rootfs/sbin/extlinux
+mkdir -p rootfs/usr/share/syslinux rootfs/boot
+cp syslinux-6.03/bios/mbr/mbr.bin syslinux-6.03/bios/com32/menu/menu.c32 syslinux-6.03/bios/com32/libutil/libutil.c32 rootfs/usr/share/syslinux/
+cp "$TOP/files/notlfs-install" rootfs/sbin/ && chmod +x rootfs/sbin/notlfs-install
 
 mkdir -p rootfs/etc/fastfetch rootfs/etc/xdg/fastfetch
 cp "$TOP/files/logo.txt" rootfs/etc/fastfetch/
@@ -271,4 +372,21 @@ OS
 cd rootfs
 rm -f "$TOP/out/initramfs.cpio.gz"
 find . | cpio -o -H newc -R 0:0 | xz -9e --check=crc32 > "$TOP/out/initramfs.cpio.xz"
-echo "Done: out/bzImage out/initramfs.cpio.xz"
+cd ..
+
+# 6. hybrid ISO (isolinux, BIOS; boots from CD or as a raw USB/disk image)
+rm -rf iso && mkdir -p iso/boot iso/isolinux
+cp "$TOP/out/bzImage" "$TOP/out/initramfs.cpio.xz" iso/boot/
+cp syslinux-6.03/bios/core/isolinux.bin syslinux-6.03/bios/com32/elflink/ldlinux/ldlinux.c32 iso/isolinux/
+cat > iso/isolinux/isolinux.cfg <<'CFG'
+DEFAULT notlfs
+PROMPT 0
+TIMEOUT 30
+LABEL notlfs
+  LINUX /boot/bzImage
+  INITRD /boot/initramfs.cpio.xz
+  APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4
+CFG
+xorriso -as mkisofs -quiet -o "$TOP/out/notlfs.iso" -V NOTLFS -isohybrid-mbr syslinux-6.03/bios/mbr/isohdpfx.bin \
+  -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table -R -J iso
+echo "Done: out/bzImage out/initramfs.cpio.xz out/notlfs.iso"

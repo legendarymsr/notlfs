@@ -1,0 +1,4 @@
+#!/bin/sh
+# root shell for getty -n -l (ignores the login name getty passes)
+cd /root
+exec /bin/sh -l
