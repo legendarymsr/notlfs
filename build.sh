@@ -377,6 +377,15 @@ mkdir -p rootfs/etc/fastfetch rootfs/etc/xdg/fastfetch
 cp "$TOP/files/logo.txt" rootfs/etc/fastfetch/
 cp "$TOP/files/config.jsonc" rootfs/etc/xdg/fastfetch/
 mkdir -p rootfs/usr/share/fastfetch && cp -r fastfetch-$FASTFETCH/presets rootfs/usr/share/fastfetch/
+# presets use the notlfs logo too (same source/colors as files/config.jsonc)
+python3 - rootfs/usr/share/fastfetch/presets/all.jsonc <<'PY'
+import json,re,sys
+p=sys.argv[1]; s=open(p).read()
+s=re.sub(r'"logo":\s*\{', '"logo": {\n        "type": "file",\n        "source": "/etc/fastfetch/logo.txt",\n        "color": { "1": "magenta" },', s, count=1)
+open(p,'w').write(s)
+PY
+# optional media for the demo (NOTLFS_MEDIA=dir: *.webm -> /root/media, *.flac -> /root/music)
+if [ -n "${NOTLFS_MEDIA:-}" ]; then mkdir -p rootfs/root/media rootfs/root/music; cp "$NOTLFS_MEDIA"/*.webm rootfs/root/media/ 2>/dev/null; cp "$NOTLFS_MEDIA"/*.flac rootfs/root/music/ 2>/dev/null; true; fi
 echo notlfs > rootfs/etc/hostname
 cat > rootfs/etc/os-release <<'OS'
 NAME=notlfs
