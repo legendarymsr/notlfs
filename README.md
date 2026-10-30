@@ -1,6 +1,6 @@
 # notlfs
 
-notlfs (not Linux From Scratch): a dead simple Linux. Kernel "catgirls": GNU Linux-libre 6.6.160-gnu (GPL-2.0, no firmware blobs), uname -r 6.6.160-gnu-catgirls,, musl, BusyBox, fastfetch with a middle-finger logo.
+notlfs (not Linux From Scratch): a dead simple Linux. Kernel "catgirls": GNU Linux-libre 6.6.160-gnu (GPL-2.0, no firmware blobs), uname -r 6.6.160-gnu-catgirls, musl, BusyBox, fastfetch with a middle-finger logo.
 
 ```sh
 ./build.sh   # -> out/bzImage, out/initramfs.cpio.gz
