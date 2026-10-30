@@ -64,6 +64,21 @@ get https://github.com/tats/w3m/archive/refs/tags/v0.5.3+git20230121.tar.gz w3m-
 [ -f cacert.pem ] || curl -LO https://curl.se/ca/cacert.pem
 unset CC AR RANLIB CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
 
+# 2d. vis editor with static Lua 5.4 + LPeg (syntax highlighting)
+export CC="${CROSS}gcc" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
+get https://www.lua.org/ftp/lua-5.4.7.tar.gz lua-5.4.7
+[ -f $SYS/lib/liblua.a ] || (cd lua-5.4.7 && make posix CC="$CC" AR="$AR rcu" RANLIB="$RANLIB" && make install INSTALL_TOP=$SYS)
+get https://www.inf.puc-rio.br/~roberto/lpeg/lpeg-1.1.0.tar.gz lpeg-1.1.0
+[ -f $SYS/lib/liblpeg.a ] || (cd lpeg-1.1.0 && $CC -Os -I$SYS/include -c lp*.c && $AR rcs $SYS/lib/liblpeg.a lp*.o)
+get https://www.leonerd.org.uk/code/libtermkey/libtermkey-0.22.tar.gz libtermkey-0.22
+[ -f $SYS/lib/libtermkey.a ] || (cd libtermkey-0.22 && $CC -Os -I$SYS/include -I$SYS/include/ncursesw -c termkey.c driver-csi.c driver-ti.c \
+  && $AR rcs $SYS/lib/libtermkey.a termkey.o driver-csi.o driver-ti.o && cp termkey.h $SYS/include/)
+get https://github.com/martanne/vis/archive/refs/tags/v0.9.tar.gz vis-0.9
+[ -f vis-0.9/vis ] || (cd vis-0.9 && CFLAGS="-Os -I$SYS/include -I$SYS/include/ncursesw" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_LIBDIR= \
+  ./configure --prefix=/usr --enable-curses --enable-lua --enable-lpeg-static --disable-tre --disable-selinux --disable-acl \
+  && make -j$JOBS)
+unset CC AR RANLIB
+
 # 3. GNU Linux-libre kernel (GPL-2.0, no blobs)
 if [ ! -d linux-$KERNEL ]; then
   curl -LO https://linux-libre.fsfla.org/pub/linux-libre/releases/$KERNEL-gnu/linux-libre-$KERNEL-gnu.tar.xz
@@ -82,7 +97,8 @@ cd ..
 rm -rf rootfs && mkdir -p rootfs/bin rootfs/sbin rootfs/etc rootfs/dev rootfs/proc rootfs/sys rootfs/tmp
 cp busybox-$BUSYBOX/busybox rootfs/bin/
 mkdir -p rootfs/usr/bin rootfs/root rootfs/etc/ssl rootfs/etc/w3m rootfs/usr/share/udhcpc rootfs/usr/share/terminfo
-cp fastfetch-build/fastfetch tmux-3.5a/tmux w3m-0.5.3-git20230121/w3m rootfs/usr/bin/
+cp fastfetch-build/fastfetch tmux-3.5a/tmux w3m-0.5.3-git20230121/w3m vis-0.9/vis rootfs/usr/bin/
+mkdir -p rootfs/usr/share/vis && cp -r vis-0.9/lua/. rootfs/usr/share/vis/
 tic -x -o rootfs/usr/share/terminfo -e linux,vt102,xterm,xterm-256color,screen,tmux,tmux-256color ncurses-6.5/misc/terminfo.src
 cp cacert.pem rootfs/etc/ssl/cert.pem
 cp busybox-$BUSYBOX/examples/udhcp/simple.script rootfs/usr/share/udhcpc/default.script
