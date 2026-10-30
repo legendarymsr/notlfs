@@ -1,0 +1,5 @@
+#!/bin/sh
+# console login: straight into tmux, fall back to a shell
+. /etc/profile
+stty cols ${COLS:-160} rows ${ROWS:-45} 2>/dev/null
+tmux new -A -s main || exec sh
