@@ -77,7 +77,7 @@ unset CC AR RANLIB CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
 # 2d. vis editor with static Lua 5.4 + LPeg (syntax highlighting)
 export CC="${CROSS}gcc" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
 get https://www.lua.org/ftp/lua-5.4.7.tar.gz lua-5.4.7
-[ -f $SYS/lib/liblua.a ] || (cd lua-5.4.7 && make posix CC="$CC" AR="$AR rcu" RANLIB="$RANLIB" && make install INSTALL_TOP=$SYS)
+[ -f $SYS/lib/liblua.a ] || (cd lua-5.4.7 && make posix CC="$CC" AR="$AR rcu" RANLIB="$RANLIB" MYLDFLAGS=-static && make install INSTALL_TOP=$SYS)
 get https://www.inf.puc-rio.br/~roberto/lpeg/lpeg-1.1.0.tar.gz lpeg-1.1.0
 [ -f $SYS/lib/liblpeg.a ] || (cd lpeg-1.1.0 && $CC -Os -I$SYS/include -c lp*.c && $AR rcs $SYS/lib/liblpeg.a lp*.o)
 get https://www.leonerd.org.uk/code/libtermkey/libtermkey-0.22.tar.gz libtermkey-0.22
@@ -225,6 +225,7 @@ mkdir -p extra-bin go-bin
 [ -f $SYS/lib/libboost_locale.a ] || (
 [ -d boost_1_83_0 ] || curl -L --retry 3 https://archives.boost.io/release/1.83.0/source/boost_1_83_0.tar.bz2 | tar xj
 cd boost_1_83_0
+echo "using gcc : musl : ${CROSS}g++ : <archiver>${CROSS}ar <ranlib>${CROSS}ranlib ;" > user-config.jam
 [ -f b2 ] || ./bootstrap.sh --with-libraries=program_options,filesystem,locale,regex,thread,system,date_time,atomic
 ./b2 -j8 --user-config=user-config.jam toolset=gcc-musl target-os=linux link=static runtime-link=static variant=release \
   threading=multi boost.locale.icu=off boost.locale.iconv=on boost.locale.posix=on cxxflags=-Os --prefix=$SYS install >/dev/null
@@ -312,7 +313,7 @@ cd ..
 rm -rf rootfs && mkdir -p rootfs/bin rootfs/sbin rootfs/etc rootfs/dev rootfs/proc rootfs/sys rootfs/tmp
 cp busybox-$BUSYBOX/busybox rootfs/bin/
 mkdir -p rootfs/usr/bin rootfs/root rootfs/etc/ssl rootfs/etc/w3m rootfs/usr/share/udhcpc rootfs/usr/share/terminfo
-cp fastfetch-build/fastfetch tmux-3.5a/tmux w3m-0.5.3-git20230121/w3m vis-0.9/vis rootfs/usr/bin/
+cp lua-5.4.7/src/lua fastfetch-build/fastfetch tmux-3.5a/tmux w3m-0.5.3-git20230121/w3m vis-0.9/vis rootfs/usr/bin/
 mkdir -p rootfs/usr/share/vis && cp -r vis-0.9/lua/. rootfs/usr/share/vis/
 tic -x -o rootfs/usr/share/terminfo -e linux,vt102,xterm,xterm-256color,screen,tmux,tmux-256color ncurses-6.5/misc/terminfo.src
 cp cacert.pem rootfs/etc/ssl/cert.pem
@@ -374,6 +375,7 @@ cp "$TOP/files/notlfs-install" rootfs/sbin/ && chmod +x rootfs/sbin/notlfs-insta
 mkdir -p rootfs/etc/fastfetch rootfs/etc/xdg/fastfetch
 cp "$TOP/files/logo.txt" rootfs/etc/fastfetch/
 cp "$TOP/files/config.jsonc" rootfs/etc/xdg/fastfetch/
+mkdir -p rootfs/usr/share/fastfetch && cp -r fastfetch-$FASTFETCH/presets rootfs/usr/share/fastfetch/
 echo notlfs > rootfs/etc/hostname
 cat > rootfs/etc/os-release <<'OS'
 NAME=notlfs
