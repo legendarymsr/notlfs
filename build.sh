@@ -270,6 +270,7 @@ get https://s3.amazonaws.com/json-c_releases/releases/json-c-0.18.tar.gz json-c-
 get https://github.com/newsboat/stfl/archive/refs/heads/master.tar.gz stfl-master
 [ -f $SYS/lib/libstfl.a ] || (cd stfl-master && make libstfl.a CC="$CC" AR="$AR" CFLAGS="-Os -I. -I$SYS/include/ncursesw -I$SYS/include -D_GNU_SOURCE -fPIC" && cp libstfl.a $SYS/lib/ && cp stfl.h $SYS/include/)
 pc stfl 0.24 "-I$SYS/include" "-L$SYS/lib -lstfl -lncursesw"
+getJ https://newsboat.org/releases/2.41/newsboat-2.41.tar.xz newsboat-2.41
 [ -f newsboat-2.41/newsboat ] || (cd newsboat-2.41
 export GIT_DIR=/nonexistent  # else build.rs uses git describe of the notlfs repo ("3632-dirty")
 export PATH=$HOME/.cargo/bin:$PATH CARGO_BUILD_TARGET=x86_64-unknown-linux-musl CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=$CC
