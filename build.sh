@@ -152,9 +152,9 @@ getj https://www.alsa-project.org/files/pub/lib/alsa-lib-1.2.13.tar.bz2 alsa-lib
   && cp -r ../stage-alsa/usr/include/. $SYS/include/ && cp ../stage-alsa/usr/lib/libasound.a $SYS/lib/ \
   && sed "s|^prefix=.*|prefix=$SYS|" ../stage-alsa/usr/lib/pkgconfig/alsa.pc > $SYS/lib/pkgconfig/alsa.pc)
 getj https://www.alsa-project.org/files/pub/utils/alsa-utils-1.2.13.tar.bz2 alsa-utils-1.2.13
-[ -f alsa-utils-1.2.13/amixer/amixer ] || (cd alsa-utils-1.2.13 && ./configure --disable-alsamixer --disable-alsaconf --disable-alsaloop \
+[ -f alsa-utils-1.2.13/aplay/aplay ] || (cd alsa-utils-1.2.13 && ./configure --disable-alsamixer --disable-alsaconf --disable-alsaloop \
   --disable-alsatest --disable-bat --disable-nls --disable-xmlto --disable-rst2man --with-alsa-inc-prefix=$SYS/include \
-  --with-alsa-prefix=$SYS/lib && make -C amixer LDFLAGS="-all-static -L$SYS/lib")
+  --with-alsa-prefix=$SYS/lib && make -C amixer LDFLAGS="-all-static -L$SYS/lib" && make -C aplay LDFLAGS="-all-static -L$SYS/lib")
 getJ https://github.com/libexpat/libexpat/releases/download/R_2_6_4/expat-2.6.4.tar.xz expat-2.6.4
 [ -f $SYS/lib/libexpat.a ] || (cd expat-2.6.4 && cfg --without-docbook --without-examples --without-tests --without-xmlwf)
 getJ https://www.freedesktop.org/software/fontconfig/release/fontconfig-2.15.0.tar.xz fontconfig-2.15.0
@@ -233,7 +233,7 @@ for f in rootfs/usr/libexec/git-core/*; do  # dedupe git's builtin copies into s
   if cmp -s "$f" rootfs/usr/bin/git; then ln -sf /usr/bin/git "$f"
   elif cmp -s "$f" rootfs/usr/libexec/git-core/git-remote-http && [ "${f##*/}" != git-remote-http ]; then ln -sf git-remote-http "$f"; fi
 done
-cp irssi-1.4.5/_b/src/fe-text/irssi aerc-0.20.1/aerc mpv-0.41.0/_b/mpv alsa-utils-1.2.13/amixer/amixer rootfs/usr/bin/
+cp irssi-1.4.5/_b/src/fe-text/irssi aerc-0.20.1/aerc mpv-0.41.0/_b/mpv alsa-utils-1.2.13/amixer/amixer alsa-utils-1.2.13/aplay/aplay rootfs/usr/bin/
 mkdir -p rootfs/usr/share/aerc && cp -r aerc-0.20.1/config/*.conf aerc-0.20.1/stylesets aerc-0.20.1/templates rootfs/usr/share/aerc/
 mkdir -p rootfs/etc/dropbear rootfs/root/.ssh && chmod 700 rootfs/root/.ssh
 find rootfs/usr -type f -perm -u+x -exec ${CROSS}strip -s {} + 2>/dev/null || true

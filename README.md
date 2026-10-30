@@ -29,7 +29,7 @@ Extras:
 
 ## v0.8 notes
 
-- **Audio:** static alsa-lib + amixer, mpv built with ALSA; kernel has HDA Intel + generic codec. QEMU gets `intel-hda` + `hda-duplex`.
+- **Audio:** static alsa-lib + amixer + aplay, mpv built with ALSA; kernel has HDA Intel + generic codec. QEMU gets `intel-hda` + `hda-duplex`.
   `AUDIO=pa ./run.sh` (or `pipewire`, `alsa`) plays on the host; `AUDIO=wav WAV=out.wav ./run.sh` records the guest audio to a file. Default is `none`.
 - **Fonts/OSD:** fontconfig + DejaVu Sans Mono in `/usr/share/fonts`, so libass and the mpv OSD work.
 - **mpv:** `/etc/mpv/mpv.conf` sets `vo=drm,tct`, `ao=alsa`, `hwdec=no`. DRM needs a real VT: run it from tty1/tty2 in `./run.sh gfx`,
