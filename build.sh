@@ -4,7 +4,8 @@
 set -eu
 # needs: cmake curl tar bzip2 xz gcc make flex bison bc libelf-dev cpio gzip
 
-KERNEL=6.6.58
+KERNEL=6.6.160
+KERNEL_SHA256=b8334e0dd70d67f05f38d64253c9603501134655d1941616266ed1aedc292828
 BUSYBOX=1.36.1
 FASTFETCH=2.50.0
 JOBS=$(nproc)
@@ -32,11 +33,15 @@ PKG_CONFIG_LIBDIR= cmake -S fastfetch-$FASTFETCH -B fastfetch-build \
   -DBUILD_TESTS=OFF -DBUILD_FLASHFETCH=OFF
 cmake --build fastfetch-build -j$JOBS --target fastfetch
 
-# 3. Linux kernel
-[ -d linux-$KERNEL ] || curl -L https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$KERNEL.tar.xz | tar xJ
+# 3. GNU Linux-libre kernel (GPL-2.0, no blobs)
+if [ ! -d linux-$KERNEL ]; then
+  curl -LO https://linux-libre.fsfla.org/pub/linux-libre/releases/$KERNEL-gnu/linux-libre-$KERNEL-gnu.tar.xz
+  echo "$KERNEL_SHA256  linux-libre-$KERNEL-gnu.tar.xz" | sha256sum -c
+  tar xJf linux-libre-$KERNEL-gnu.tar.xz
+fi
 cd linux-$KERNEL
 make defconfig
-./scripts/config --set-str LOCALVERSION "-catgirls" --set-str DEFAULT_HOSTNAME notlfs
+./scripts/config --set-str LOCALVERSION "-catgirls" --set-str DEFAULT_HOSTNAME notlfs --set-str EXTRA_FIRMWARE "" --disable DRM_I915 --disable WERROR
 make olddefconfig
 make -j$JOBS bzImage
 cp arch/x86/boot/bzImage "$TOP/out/"
