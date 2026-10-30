@@ -1,0 +1,4 @@
+{
+  "logo": { "type": "file", "source": "/etc/fastfetch/logo.txt", "color": { "1": "magenta" } },
+  "modules": ["title", "separator", "os", "host", "kernel", "uptime", "shell", "terminal", "cpu", "memory", "disk", "break", "colors"]
+}

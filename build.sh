@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Build a tiny musl + BusyBox Linux: out/bzImage + out/initramfs.cpio.gz
+# Build notlfs, a tiny musl + BusyBox Linux: out/bzImage + out/initramfs.cpio.gz
 set -eu
 # needs: cmake curl tar bzip2 xz gcc make flex bison bc libelf-dev cpio gzip
 
@@ -36,6 +36,8 @@ cmake --build fastfetch-build -j$JOBS --target fastfetch
 [ -d linux-$KERNEL ] || curl -L https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$KERNEL.tar.xz | tar xJ
 cd linux-$KERNEL
 make defconfig
+./scripts/config --set-str LOCALVERSION "-catgirls" --set-str DEFAULT_HOSTNAME notlfs
+make olddefconfig
 make -j$JOBS bzImage
 cp arch/x86/boot/bzImage "$TOP/out/"
 cd ..
@@ -50,10 +52,21 @@ cat > rootfs/etc/inittab <<'TAB'
 ::sysinit:/bin/mount -t proc proc /proc
 ::sysinit:/bin/mount -t sysfs sys /sys
 ::sysinit:/bin/mount -t devtmpfs dev /dev
-::sysinit:/bin/echo "Welcome to minimal-linux"
+::sysinit:/bin/echo "Welcome to notlfs"
+::sysinit:/bin/hostname notlfs
 ::respawn:-/bin/sh
 ::ctrlaltdel:/sbin/reboot
 TAB
+
+mkdir -p rootfs/etc/fastfetch rootfs/etc/xdg/fastfetch
+cp "$TOP/files/logo.txt" rootfs/etc/fastfetch/
+cp "$TOP/files/config.jsonc" rootfs/etc/xdg/fastfetch/
+echo notlfs > rootfs/etc/hostname
+cat > rootfs/etc/os-release <<'OS'
+NAME=notlfs
+ID=notlfs
+PRETTY_NAME="notlfs (not Linux From Scratch)"
+OS
 
 # 5. initramfs
 cd rootfs

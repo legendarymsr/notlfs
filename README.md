@@ -1,6 +1,6 @@
-# minimal-linux
+# notlfs
 
-A dead simple Linux: a kernel, musl, BusyBox, and nothing else.
+notlfs (not Linux From Scratch): a dead simple Linux. Kernel "catgirls" (6.6.58-catgirls), musl, BusyBox, fastfetch with a middle-finger logo.
 
 ```sh
 ./build.sh   # -> out/bzImage, out/initramfs.cpio.gz
@@ -14,6 +14,7 @@ What `build.sh` does:
 2. Builds static BusyBox and fastfetch against musl
 3. Builds Linux (x86_64 defconfig)
 4. Makes a rootfs with BusyBox symlinks and an `/etc/inittab`
-5. Packs it into an initramfs
+5. Adds /etc/os-release, hostname notlfs and the fastfetch logo (files/)
+6. Packs it into an initramfs
 
 License: GPL-3.0-or-later.
