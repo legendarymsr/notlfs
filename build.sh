@@ -284,9 +284,9 @@ for c in ripgrep:rg; do [ -f $B/${c#*:} ] || (CC_x86_64_unknown_linux_musl=$CC C
 get https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-1.7.1.tar.gz jq-1.7.1
 [ -f $B/jq ] || (cd jq-1.7.1 && ./configure --disable-shared --enable-static --enable-all-static --without-oniguruma --disable-docs && make -j$JOBS && cp jq $B/)
 get https://dev.yorhel.nl/download/ncdu-1.20.tar.gz ncdu-1.20
-[ -f $B/ncdu ] || (cd ncdu-1.20 && ./configure --with-ncursesw LIBS=-lncursesw && make -j$JOBS && cp ncdu $B/)
+[ -f $B/ncdu ] || (cd ncdu-1.20 && ./configure CPPFLAGS="-I$SYS/include/ncursesw -I$SYS/include" --with-ncursesw LIBS=-lncursesw && make -j$JOBS && cp ncdu $B/)
 get https://calcurse.org/files/calcurse-4.8.1.tar.gz calcurse-4.8.1
-[ -f $B/calcurse ] || (cd calcurse-4.8.1 && ./configure --disable-docs --without-asciidoc --disable-nls LIBS=-lncursesw && make -j$JOBS && cp src/calcurse $B/)
+[ -f $B/calcurse ] || (cd calcurse-4.8.1 && ./configure CPPFLAGS="-I$SYS/include/ncursesw -I$SYS/include" --disable-docs --without-asciidoc --disable-nls LIBS=-lncursesw && make -j$JOBS && cp src/calcurse $B/)
 get https://github.com/andmarti1424/sc-im/archive/refs/tags/v0.8.4.tar.gz sc-im-0.8.4
 [ -f $B/sc-im ] || (cd sc-im-0.8.4/src && sed -i 's/^CFLAGS += -DXLUA/#&/; s/^LDLIBS += .*lua.*/#&/' Makefile && CFLAGS="-Os -fgnu89-inline -I$SYS/include -I$SYS/include/ncursesw" make -j$JOBS CC="$CC" prefix=/usr LDLIBS="-lncursesw -lm" LDFLAGS="$LDFLAGS" && cp sc-im $B/)
 get https://www.tcpdump.org/release/libpcap-1.10.5.tar.gz libpcap-1.10.5
