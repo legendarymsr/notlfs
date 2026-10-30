@@ -387,6 +387,7 @@ PY
 # optional media for the demo (NOTLFS_MEDIA=dir: *.webm -> /root/media, *.flac -> /root/music)
 if [ -n "${NOTLFS_MEDIA:-}" ]; then mkdir -p rootfs/root/media rootfs/root/music; cp "$NOTLFS_MEDIA"/*.webm rootfs/root/media/ 2>/dev/null; cp "$NOTLFS_MEDIA"/*.flac rootfs/root/music/ 2>/dev/null; true; fi
 echo notlfs > rootfs/etc/hostname
+printf '127.0.0.1 localhost notlfs\n::1 localhost\n' > rootfs/etc/hosts
 cat > rootfs/etc/os-release <<'OS'
 NAME=notlfs
 ID=notlfs
