@@ -11,7 +11,7 @@ Needs: cmake, curl, tar, bzip2, xz, gcc, make, flex, bison, bc, libelf-dev, cpio
 
 What `build.sh` does:
 1. Grabs the prebuilt musl cross toolchain from musl.cc
-2. Builds static BusyBox, fastfetch, ncurses, libevent, tmux 3.5a, LibreSSL 3.9.2, bdwgc 8.2.8 and w3m 0.5.3+git20230121, Lua 5.4.7, LPeg 1.1.0, libtermkey 0.22 vis 0.9, dropbear 2026.94, zlib, curl 8.11.1, git 2.47.1, glib 2.82.4, irssi 1.4.5, FFmpeg 7.1, freetype, fribidi, harfbuzz, libass, libdrm, libplacebo and mpv 0.41.0 against musl; aerc 0.20.1 is built with Go (CGO off)
+2. Builds static BusyBox, fastfetch, ncurses, libevent, tmux 3.5a, LibreSSL 3.9.2, bdwgc 8.2.8 and w3m 0.5.3+git20230121, Lua 5.4.7, LPeg 1.1.0, libtermkey 0.22 vis 0.9, dropbear 2026.94, zlib, curl 8.11.1, git 2.47.1, glib 2.82.4, irssi 1.4.5, FFmpeg 7.1, freetype, fribidi, harfbuzz, libass, libdrm, libplacebo and mpv 0.41.0 against musl; aerc 0.20.1, lf r42 and fzf 0.74.5 are built with Go (CGO off)
 3. Downloads GNU Linux-libre from linux-libre.fsfla.org (sha256-pinned), builds x86_64 defconfig with no built-in firmware
 4. Makes a rootfs with BusyBox symlinks and s6 as init (s6-linux-init)
 5. Adds terminfo, a CA bundle, DHCP (udhcpc on eth0), /etc/tmux.conf, /etc/os-release, hostname notlfs and the fastfetch logo (files/)
@@ -26,6 +26,16 @@ Extras:
 - `git clone https://...` works (curl + LibreSSL).
 - `irssi`, `aerc` (starts the account wizard).
 - `mpv --vo=drm file` plays video on the virtio-gpu display (QEMU window/screendump), e.g. `mpv --vo=drm av://lavfi:testsrc`. `--vo=tct` plays it in the terminal. No audio output.
+
+## v0.11: fixes, a few small tools
+
+- **Added** (static musl): fzf 0.74.5 (Go), ripgrep (`rg`), jq 1.7.1, ncdu 1.20, calcurse 4.8.1, sc-im 0.8.4 (no Lua/xlsx),
+  tcpdump 4.99.5 (libpcap 1.10.5).
+- **Removed:** nnn (lf + fzf cover files) and btop (htop stays). lf updated to r42.
+- **Fixes:** newsboat showed `3632-dirty` (its build.rs ran `git describe` on this repo); now built with `GIT_DIR=/nonexistent`
+  so it reports 2.41. The leftover `/persist` test file is gone (fresh install). The fastfetch screenshot glitch was the typed
+  command left on screen; screenshots now run `clear` first.
+- **Overlaps left:** ripgrep vs BusyBox `grep`, ncdu vs BusyBox `du`, lf vs fzf for files, mpd/ncmpcpp vs mpv for audio.
 
 ## v0.10: s6, disk install, more TUI tools
 
@@ -42,7 +52,7 @@ Extras:
   (syslinux 6.03, rebuilt static against musl), BusyBox `fdisk`.
   Test in QEMU: `qemu-img create -f raw disk.img 2G`, boot with `-cdrom out/notlfs.iso -drive file=disk.img,format=raw -boot d`,
   install, then boot with just `-drive file=disk.img,format=raw`.
-- **TUI tools** (all static musl): htop 3.3.0, btop 1.4.0, nnn 5.0, lf r33 (Go), mpd 0.23.17 (ALSA, runs as an s6 service,
+- **TUI tools** (all static musl): htop 3.3.0, lf r42 (Go), mpd 0.23.17 (ALSA, runs as an s6 service,
   music goes in `/root/music`) + ncmpcpp 0.10.1 (static boost 1.83), newsboat 2.41 (Rust, musl target; `/root/.newsboat/urls`
   has your GitHub feed).
 - **Not included:** cmus and weechat. Both load their core functionality (cmus: every input/output backend; weechat: IRC, relay,

@@ -208,7 +208,7 @@ get https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.
      bootsect_bin.c ldlinux_bin.c ldlinuxc32_bin.c ../../e2fsprogs-1.47.1/lib/libuuid.a)
 unset CC AR RANLIB
 
-# 2i. TUI tools: htop, nnn, lf, btop / boost / fmt, mpd, ncmpcpp / newsboat (needs rustup's x86_64-unknown-linux-musl target)
+# 2i. TUI tools: htop, lf / boost / fmt, mpd, ncmpcpp / newsboat (needs rustup's x86_64-unknown-linux-musl target)
 (
 export CC="${CROSS}gcc" CXX="${CROSS}g++" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
 export CFLAGS="-Os -I$SYS/include -I$SYS/include/ncursesw" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
@@ -217,14 +217,10 @@ getJ() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xJ; }; }
 getJ https://github.com/htop-dev/htop/releases/download/3.3.0/htop-3.3.0.tar.xz htop-3.3.0
 [ -f htop-3.3.0/htop ] || (cd htop-3.3.0 && ./configure --enable-static --enable-unicode --disable-sensors --disable-capabilities --disable-delayacct \
   LIBS="-lncursesw" HTOP_NCURSES_CONFIG_SCRIPT=/bin/false && make -j$JOBS)
-get https://github.com/void-linux/musl-fts/archive/refs/tags/v1.2.7.tar.gz musl-fts-1.2.7
-[ -f $SYS/lib/libfts.a ] || (cd musl-fts-1.2.7 && touch config.h && $CC -Os -DHAVE_DIRFD -DHAVE_DECL_MAX=1 -DHAVE_DECL_UINTMAX_MAX=1 -include stdint.h -include sys/param.h -I. -c fts.c && $AR rcs $SYS/lib/libfts.a fts.o && cp fts.h $SYS/include/)
-get https://github.com/jarun/nnn/archive/refs/tags/v5.0.tar.gz nnn-5.0
-[ -f nnn-5.0/nnn ] || (cd nnn-5.0 && make -j$JOBS O_NORL=1 O_NOMAGIC=1 O_NOX11=1 CFLAGS_CURSES="-I$SYS/include/ncursesw" LDLIBS_CURSES="-lncursesw -lfts" LDFLAGS="$LDFLAGS" CFLAGS="$CFLAGS")
-get https://github.com/gokcehan/lf/archive/refs/tags/r33.tar.gz lf-r33
-[ -f lf-r33/lf ] || (cd lf-r33 && CC= CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o lf .)
-get https://github.com/aristocratos/btop/archive/refs/tags/v1.4.0.tar.gz btop-1.4.0
-[ -f btop-1.4.0/bin/btop ] || (cd btop-1.4.0 && CFLAGS= LDFLAGS= make -j$JOBS STATIC=true GPU_SUPPORT=false CXX="$CXX" ADDFLAGS="-static")
+# Go programs: standard Go toolchain, CGO off, static
+mkdir -p extra-bin go-bin
+[ -f go-bin/lf ] || (CC= CGO_ENABLED=0 GOBIN=$PWD/go-bin go install -trimpath -ldflags "-s -w -X main.gVersion=r42" github.com/gokcehan/lf@r42)
+[ -f extra-bin/fzf ] || (CC= CGO_ENABLED=0 GOBIN=$PWD/extra-bin go install -trimpath -ldflags "-s -w -X main.version=0.74.5" github.com/junegunn/fzf@v0.74.5)
 )
 [ -f $SYS/lib/libboost_locale.a ] || (
 [ -d boost_1_83_0 ] || curl -L --retry 3 https://archives.boost.io/release/1.83.0/source/boost_1_83_0.tar.bz2 | tar xj
@@ -274,10 +270,27 @@ get https://github.com/newsboat/stfl/archive/refs/heads/master.tar.gz stfl-maste
 [ -f $SYS/lib/libstfl.a ] || (cd stfl-master && make libstfl.a CC="$CC" AR="$AR" CFLAGS="-Os -I. -I$SYS/include/ncursesw -I$SYS/include -D_GNU_SOURCE -fPIC" && cp libstfl.a $SYS/lib/ && cp stfl.h $SYS/include/)
 pc stfl 0.24 "-I$SYS/include" "-L$SYS/lib -lstfl -lncursesw"
 [ -f newsboat-2.41/newsboat ] || (cd newsboat-2.41
+export GIT_DIR=/nonexistent  # else build.rs uses git describe of the notlfs repo ("3632-dirty")
 export PATH=$HOME/.cargo/bin:$PATH CARGO_BUILD_TARGET=x86_64-unknown-linux-musl CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=$CC
 printf '#!/bin/sh\nexec pkg-config --static "$@"\n' > ../pkgconf-static && chmod +x ../pkgconf-static
 export PKG_CONFIG=$PWD/../pkgconf-static
 make -j$JOBS newsboat CARGO_FLAGS="--target x86_64-unknown-linux-musl")
+# 2j. minimal extras: ripgrep fzf jq ncdu calcurse sc-im tcpdump -> build/extra-bin
+B=$PWD/extra-bin; mkdir -p $B
+export PATH=$HOME/.cargo/bin:$PATH
+for c in ripgrep:rg; do [ -f $B/${c#*:} ] || (CC_x86_64_unknown_linux_musl=$CC CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=$CC CC= CFLAGS= LDFLAGS= cargo install --locked --target x86_64-unknown-linux-musl --root $PWD/cargo-root ${c%:*} && cp cargo-root/bin/${c#*:} $B/); done
+get https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-1.7.1.tar.gz jq-1.7.1
+[ -f $B/jq ] || (cd jq-1.7.1 && ./configure --disable-shared --enable-static --enable-all-static --without-oniguruma --disable-docs && make -j$JOBS && cp jq $B/)
+get https://dev.yorhel.nl/download/ncdu-1.20.tar.gz ncdu-1.20
+[ -f $B/ncdu ] || (cd ncdu-1.20 && ./configure --with-ncursesw LIBS=-lncursesw && make -j$JOBS && cp ncdu $B/)
+get https://calcurse.org/files/calcurse-4.8.1.tar.gz calcurse-4.8.1
+[ -f $B/calcurse ] || (cd calcurse-4.8.1 && ./configure --disable-docs --without-asciidoc --disable-nls LIBS=-lncursesw && make -j$JOBS && cp src/calcurse $B/)
+get https://github.com/andmarti1424/sc-im/archive/refs/tags/v0.8.4.tar.gz sc-im-0.8.4
+[ -f $B/sc-im ] || (cd sc-im-0.8.4/src && sed -i 's/^CFLAGS += -DXLUA/#&/; s/^LDLIBS += .*lua.*/#&/' Makefile && CFLAGS="-Os -fgnu89-inline -I$SYS/include -I$SYS/include/ncursesw" make -j$JOBS CC="$CC" prefix=/usr LDLIBS="-lncursesw -lm" LDFLAGS="$LDFLAGS" && cp sc-im $B/)
+get https://www.tcpdump.org/release/libpcap-1.10.5.tar.gz libpcap-1.10.5
+[ -f $SYS/lib/libpcap.a ] || (cd libpcap-1.10.5 && ./configure --prefix=$SYS --disable-shared --disable-usb --disable-dbus --disable-rdma --disable-bluetooth --without-libnl && make -j$JOBS && make install)
+get https://www.tcpdump.org/release/tcpdump-4.99.5.tar.gz tcpdump-4.99.5
+[ -f $B/tcpdump ] || (cd tcpdump-4.99.5 && ./configure --without-crypto --with-pcap=$SYS && make -j$JOBS && cp tcpdump $B/)
 )
 
 # 3. GNU Linux-libre kernel (GPL-2.0, no blobs)
@@ -330,8 +343,8 @@ for f in rootfs/usr/libexec/git-core/*; do  # dedupe git's builtin copies into s
 done
 cp irssi-1.4.5/_b/src/fe-text/irssi aerc-0.20.1/aerc mpv-0.41.0/_b/mpv alsa-utils-1.2.13/amixer/amixer alsa-utils-1.2.13/aplay/aplay rootfs/usr/bin/
 mkdir -p rootfs/usr/share/aerc && cp -r aerc-0.20.1/config/*.conf aerc-0.20.1/stylesets aerc-0.20.1/templates rootfs/usr/share/aerc/
-# TUI tools: htop, btop, nnn, lf, mpd + ncmpcpp, newsboat
-cp htop-3.3.0/htop btop-1.4.0/bin/btop nnn-5.0/nnn lf-r33/lf mpd-0.23.17/_b/mpd ncmpcpp-0.10.1/src/ncmpcpp rootfs/usr/bin/
+# TUI tools: htop, lf, mpd + ncmpcpp, newsboat, extras
+cp extra-bin/* htop-3.3.0/htop go-bin/lf mpd-0.23.17/_b/mpd ncmpcpp-0.10.1/src/ncmpcpp rootfs/usr/bin/
 [ -f newsboat-2.41/newsboat ] && cp newsboat-2.41/newsboat rootfs/usr/bin/
 cp "$TOP/files/mpd.conf" rootfs/etc/mpd.conf
 # lf (tcell) shells out to infocmp for terms it does not know; tmux-256color is one, screen-256color is built in
