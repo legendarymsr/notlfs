@@ -38,7 +38,10 @@ cmake --build fastfetch-build -j$JOBS --target fastfetch
 SYS=$PWD/sysroot
 export CC="${CROSS}gcc" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
 export CFLAGS="-Os -I$SYS/include -I$SYS/include/ncursesw" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=
-get() { [ -d "$2" ] || { curl -L "$1" | tar xz; }; }
+get() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xz; }; }
+getJ() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xJ; }; }
+printf "[binaries]\ncmake = 'false'\n" > nocmake.ini
+
 cfg() { ./configure --prefix=$SYS --disable-shared --enable-static "$@"; make -j$JOBS; make install; }
 
 get https://invisible-mirror.net/archives/ncurses/ncurses-6.5.tar.gz ncurses-6.5
@@ -79,6 +82,79 @@ get https://github.com/martanne/vis/archive/refs/tags/v0.9.tar.gz vis-0.9
   && make -j$JOBS)
 unset CC AR RANLIB
 
+# 2e. dropbear (ssh), zlib, curl, git
+export CC="${CROSS}gcc" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
+export CFLAGS="-Os -I$SYS/include" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
+getj() { [ -d "$2" ] || { curl -L "$1" | tar xj; }; }
+
+get https://zlib.net/fossils/zlib-1.3.1.tar.gz zlib-1.3.1
+[ -f $SYS/lib/libz.a ] || (cd zlib-1.3.1 && ./configure --prefix=$SYS --static && make -j$JOBS && make install)
+
+getj https://matt.ucc.asn.au/dropbear/releases/dropbear-2026.94.tar.bz2 dropbear-2026.94
+[ -f dropbear-2026.94/dropbearmulti ] || (cd dropbear-2026.94 && ./configure --enable-static --disable-wtmp --disable-lastlog --disable-pam \
+  && make -j$JOBS PROGRAMS="dropbear dbclient dropbearkey scp" MULTI=1 STATIC=1)
+
+get https://curl.se/download/curl-8.11.1.tar.gz curl-8.11.1
+[ -f $SYS/lib/libcurl.a ] || (cd curl-8.11.1 && cfg --with-openssl=$SYS --with-zlib=$SYS --without-libpsl --without-brotli --without-zstd \
+  --without-nghttp2 --without-libidn2 --disable-ldap --disable-manual --with-ca-bundle=/etc/ssl/cert.pem)
+
+get https://www.kernel.org/pub/software/scm/git/git-2.47.1.tar.gz git-2.47.1
+GITOPTS="prefix=/usr NO_GETTEXT=1 NO_TCLTK=1 NO_PERL=1 NO_PYTHON=1 NO_EXPAT=1 NO_REGEX=NeedsStartEnd NO_INSTALL_HARDLINKS=1 CURL_CONFIG=/bin/false"
+[ -d git-install ] || (cd git-2.47.1 && make -j$JOBS $GITOPTS CC="$CC" AR="$AR" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" \
+  CURL_LDFLAGS="-lcurl -lssl -lcrypto -lz" all install DESTDIR=$PWD/../git-install)
+unset CC AR RANLIB CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
+
+# 2g. glib + irssi (meson), aerc (Go, CGO off)
+export CC="${CROSS}gcc" AR="${CROSS}ar"
+export CFLAGS="-Os -I$SYS/include -I$SYS/include/ncursesw" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
+getJ https://download.gnome.org/sources/glib/2.82/glib-2.82.4.tar.xz glib-2.82.4
+[ -f $SYS/lib/libglib-2.0.a ] || (cd glib-2.82.4 && meson setup _b --native-file ../nocmake.ini --prefix=$SYS --libdir=lib --default-library=static \
+  --prefer-static --buildtype=minsize -Dtests=false -Dintrospection=disabled -Dnls=disabled -Dlibmount=disabled -Dselinux=disabled -Dxattr=false \
+  -Dman-pages=disabled -Ddocumentation=false -Dglib_debug=disabled -Dsysprof=disabled && ninja -C _b install)
+getJ https://github.com/irssi/irssi/releases/download/1.4.5/irssi-1.4.5.tar.xz irssi-1.4.5
+[ -f irssi-1.4.5/_b/src/fe-text/irssi ] || (cd irssi-1.4.5 && \
+  sed -i "s|find_library(setupterm_provider, required : false)|find_library(setupterm_provider, required : false, dirs : '$SYS/lib')|" meson.build && \
+  meson setup _b --native-file ../nocmake.ini --prefix=/usr --sysconfdir=/etc --default-library=static --prefer-static --buildtype=minsize \
+  -Dwith-perl=no -Dwith-proxy=no -Dwith-otr=no -Denable-true-color=yes -Ddisable-utf8proc=yes && ninja -C _b)
+unset CC AR CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
+get https://git.sr.ht/~rjarry/aerc/archive/0.20.1.tar.gz aerc-0.20.1
+[ -f aerc-0.20.1/aerc ] || (cd aerc-0.20.1 && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o aerc .)
+
+# 2f. mpv: ffmpeg + libass stack + libplacebo + libdrm, all static meson/autotools
+export CC="${CROSS}gcc" AR="${CROSS}ar" RANLIB="${CROSS}ranlib" CXX="${CROSS}g++"
+export CFLAGS="-Os -I$SYS/include" CXXFLAGS="-Os -I$SYS/include" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
+mb() { [ -f "$1/_b/.done" ] || (cd "$1" && shift && meson setup _b --native-file "$OLDPWD/nocmake.ini" --prefix=$SYS --libdir=lib \
+  --default-library=static --prefer-static --buildtype=minsize --wrap-mode=nofallback "$@" && ninja -C _b install && touch _b/.done); }
+
+get https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz FFmpeg-n7.1
+[ -f $SYS/lib/libavcodec.a ] || (cd FFmpeg-n7.1 && ./configure --prefix=$SYS --cc="$CC" --ar="$AR" --ranlib="$RANLIB" --pkg-config=pkg-config \
+  --pkg-config-flags=--static --enable-static --disable-shared --disable-programs --disable-doc --disable-autodetect --disable-x86asm \
+  --disable-network --enable-zlib --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" && make -j$JOBS && make install)
+
+getJ https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz freetype-2.13.3
+mb freetype-2.13.3 -Dbrotli=disabled -Dbzip2=disabled -Dharfbuzz=disabled -Dpng=disabled -Dzlib=disabled
+getJ https://github.com/fribidi/fribidi/releases/download/v1.0.16/fribidi-1.0.16.tar.xz fribidi-1.0.16
+mb fribidi-1.0.16 -Ddocs=false -Dbin=false -Dtests=false
+getJ https://github.com/harfbuzz/harfbuzz/releases/download/10.1.0/harfbuzz-10.1.0.tar.xz harfbuzz-10.1.0
+mb harfbuzz-10.1.0 -Dglib=disabled -Dgobject=disabled -Dcairo=disabled -Dicu=disabled -Dtests=disabled -Ddocs=disabled -Dutilities=disabled -Dfreetype=enabled
+getJ https://github.com/libass/libass/releases/download/0.17.3/libass-0.17.3.tar.xz libass-0.17.3
+[ -f $SYS/lib/libass.a ] || (cd libass-0.17.3 && cfg --disable-fontconfig --disable-require-system-font-provider --disable-asm --disable-libunibreak)
+getJ https://dri.freedesktop.org/libdrm/libdrm-2.4.124.tar.xz libdrm-2.4.124
+mb libdrm-2.4.124 -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Dtests=false -Dman-pages=disabled -Dvalgrind=disabled -Dcairo-tests=disabled
+get https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/v1.4.303.tar.gz Vulkan-Headers-1.4.303
+[ -d $SYS/include/vulkan ] || cp -r Vulkan-Headers-1.4.303/include/vulkan Vulkan-Headers-1.4.303/include/vk_video $SYS/include/
+get https://code.videolan.org/videolan/libplacebo/-/archive/v7.349.0/libplacebo-v7.349.0.tar.gz libplacebo-v7.349.0
+mb libplacebo-v7.349.0 -Dvulkan=disabled -Dopengl=disabled -Dd3d11=disabled -Dglslang=disabled -Dshaderc=disabled -Dlcms=disabled -Ddemos=false -Dtests=false -Dxxhash=disabled -Dlibdovi=disabled -Dunwind=disabled
+grep -q stdc++ $SYS/lib/pkgconfig/libplacebo.pc || sed -i "s/^Libs: .*/& -lstdc++/" $SYS/lib/pkgconfig/libplacebo.pc
+get https://gitlab.freedesktop.org/emersion/libdisplay-info/-/archive/0.2.0/libdisplay-info-0.2.0.tar.gz libdisplay-info-0.2.0
+mb libdisplay-info-0.2.0
+get https://github.com/mpv-player/mpv/archive/refs/tags/v0.41.0.tar.gz mpv-0.41.0
+mb mpv-0.41.0 -Dlibmpv=false -Dcplayer=true -Dlua=disabled -Djavascript=disabled -Dlibarchive=disabled -Dlibbluray=disabled -Ddvdnav=disabled \
+  -Dcdda=disabled -Dalsa=disabled -Dpulse=disabled -Dpipewire=disabled -Djack=disabled -Dsdl2-audio=disabled -Dopenal=disabled \
+  -Dx11=disabled -Dwayland=disabled -Dgl=disabled -Dvulkan=disabled -Degl=disabled -Ddrm=enabled -Dgbm=disabled -Dcaca=disabled \
+  -Dsixel=disabled -Diconv=disabled -Duchardet=disabled -Drubberband=disabled -Dzimg=disabled -Dlcms2=disabled -Dmanpage-build=disabled -Dhtml-build=disabled
+unset CC AR RANLIB CXX CFLAGS CXXFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
+
 # 3. GNU Linux-libre kernel (GPL-2.0, no blobs)
 if [ ! -d linux-$KERNEL ]; then
   curl -LO https://linux-libre.fsfla.org/pub/linux-libre/releases/$KERNEL-gnu/linux-libre-$KERNEL-gnu.tar.xz
@@ -107,6 +183,21 @@ cp "$TOP/files/w3m-config" rootfs/etc/w3m/config
 cp "$TOP/files/tui" rootfs/bin/tui
 chmod +x rootfs/bin/tui rootfs/usr/share/udhcpc/default.script
 echo 'root:x:0:0:root:/root:/bin/sh' > rootfs/etc/passwd
+echo 'root:*:0:0:99999:7:::' > rootfs/etc/shadow
+# extras: ssh, git, irc, mail, video
+cp dropbear-2026.94/dropbearmulti rootfs/usr/bin/
+for p in dropbear dbclient dropbearkey scp ssh; do ln -sf dropbearmulti rootfs/usr/bin/$p; done
+ln -sf dbclient rootfs/usr/bin/ssh
+cp -a git-install/usr/. rootfs/usr/
+rm -f rootfs/usr/bin/scalar rootfs/usr/libexec/git-core/scalar
+for f in rootfs/usr/libexec/git-core/*; do  # dedupe git's builtin copies into symlinks
+  if cmp -s "$f" rootfs/usr/bin/git; then ln -sf /usr/bin/git "$f"
+  elif cmp -s "$f" rootfs/usr/libexec/git-core/git-remote-http && [ "${f##*/}" != git-remote-http ]; then ln -sf git-remote-http "$f"; fi
+done
+cp irssi-1.4.5/_b/src/fe-text/irssi aerc-0.20.1/aerc mpv-0.41.0/_b/mpv rootfs/usr/bin/
+mkdir -p rootfs/usr/share/aerc && cp -r aerc-0.20.1/config/*.conf aerc-0.20.1/stylesets aerc-0.20.1/templates rootfs/usr/share/aerc/
+mkdir -p rootfs/etc/dropbear rootfs/root/.ssh && chmod 700 rootfs/root/.ssh
+find rootfs/usr -type f -perm -u+x -exec ${CROSS}strip -s {} + 2>/dev/null || true
 for app in $(rootfs/bin/busybox --list-full); do ln -sf /bin/busybox "rootfs/$app" 2>/dev/null || true; done
 ln -sf bin/busybox rootfs/init
 cat > rootfs/etc/inittab <<'TAB'
@@ -119,6 +210,7 @@ cat > rootfs/etc/inittab <<'TAB'
 ::sysinit:/bin/hostname notlfs
 ::sysinit:/sbin/ip link set lo up
 ::sysinit:/sbin/udhcpc -i eth0 -q -n -t 5
+::sysinit:/usr/bin/dropbear -R -s
 ::respawn:-/bin/tui
 ::ctrlaltdel:/sbin/reboot
 TAB
@@ -135,5 +227,5 @@ OS
 
 # 5. initramfs
 cd rootfs
-find . | cpio -o -H newc | gzip -9 > "$TOP/out/initramfs.cpio.gz"
+find . | cpio -o -H newc -R 0:0 | gzip -9 > "$TOP/out/initramfs.cpio.gz"
 echo "Done: out/bzImage out/initramfs.cpio.gz"
