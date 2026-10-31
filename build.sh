@@ -382,6 +382,7 @@ python3 - rootfs/usr/share/fastfetch/presets/all.jsonc <<'PY'
 import json,re,sys
 p=sys.argv[1]; s=open(p).read()
 s=re.sub(r'"logo":\s*\{', '"logo": {\n        "type": "file",\n        "source": "/etc/fastfetch/logo.txt",\n        "color": { "1": "magenta" },', s, count=1)
+s=s.replace('{', '{\n  "display": { "color": { "keys": "blue", "title": "magenta", "output": "white" } },', 1)
 open(p,'w').write(s)
 PY
 # optional media for the demo (NOTLFS_MEDIA=dir: *.webm -> /root/media, *.flac -> /root/music)
@@ -393,6 +394,9 @@ NAME=notlfs
 ID=notlfs
 PRETTY_NAME="notlfs (not Linux From Scratch)"
 OS
+
+# Tokyo Night configs (user dotfiles for root, vis/aerc themes, ncdu.conf)
+cp -a "$TOP/files/theme/." rootfs/
 
 # 5. initramfs
 cd rootfs
@@ -411,7 +415,7 @@ TIMEOUT 30
 LABEL notlfs
   LINUX /boot/bzImage
   INITRD /boot/initramfs.cpio.xz
-  APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4
+  APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=26,247,158,224,122,187,125,192,86,247,158,224,122,187,125,192 vt.default_grn=27,118,206,175,162,154,207,202,95,118,206,175,162,154,207,202 vt.default_blu=38,142,106,104,247,247,255,245,137,142,106,104,247,247,255,245
 CFG
 xorriso -as mkisofs -quiet -o "$TOP/out/notlfs.iso" -V NOTLFS -isohybrid-mbr syslinux-6.03/bios/mbr/isohdpfx.bin \
   -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table -R -J iso

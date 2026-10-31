@@ -1,0 +1,25 @@
+# Tokyo Night
+colors_enabled = yes
+empty_tag_color = black
+header_window_color = blue
+volume_color = cyan
+state_line_color = black
+state_flags_color = magenta:b
+main_window_color = white
+color1 = white
+color2 = green
+progressbar_color = black:b
+progressbar_elapsed_color = magenta:b
+statusbar_color = blue
+statusbar_time_color = cyan:b
+player_state_color = magenta:b
+alternative_ui_separator_color = black:b
+window_border_color = blue
+active_window_border = magenta
+current_item_prefix = $(magenta)$r
+current_item_suffix = $/r$(end)
+selected_item_prefix = $(cyan)
+selected_item_suffix = $(end)
+song_list_format = {$(blue)%a$(end) $(8)-$(end) }{$(white)%t$(end)}|{$(white)%f$(end)}$R{$(cyan)%l$(end)}
+song_status_format = {$(magenta)%a$(end) - }{$(blue)%t$(end)}|{%f}
+progressbar_look = ─╼─

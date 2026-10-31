@@ -1,0 +1,15 @@
+# Tokyo Night
+color background          default default
+color listnormal          white   default
+color listfocus           black   blue    bold
+color listnormal_unread   magenta default
+color listfocus_unread    black   magenta bold
+color title               black   blue    bold
+color info                black   blue    bold
+color hint-key            cyan    default bold
+color hint-keys-delimiter color8  default
+color hint-separator      color8  default
+color hint-description    white   default
+color article             white   default
+highlight article "^(Feed|Title|Author|Link|Date):" blue default bold
+highlight article "https?://[^ ]+" cyan default underline

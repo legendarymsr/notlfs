@@ -1,0 +1,2 @@
+# htop's default scheme uses ANSI colors, which the VT palette turns Tokyo Night
+color_scheme=0

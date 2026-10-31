@@ -56,7 +56,7 @@ PROMPT 0
 TIMEOUT 30
 LABEL notlfs
   LINUX /boot/bzImage
-  APPEND root=PARTUUID=$PU rootwait rw init=/sbin/init console=tty1 console=ttyS0 loglevel=4
+  APPEND root=PARTUUID=$PU rootwait rw init=/sbin/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=26,247,158,224,122,187,125,192,86,247,158,224,122,187,125,192 vt.default_grn=27,118,206,175,162,154,207,202,95,118,206,175,162,154,207,202 vt.default_blu=38,142,106,104,247,247,255,245,137,142,106,104,247,247,255,245
 CFG
 extlinux --install $T/boot/syslinux >/dev/null
 sync; umount $T

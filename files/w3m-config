@@ -1,2 +1,13 @@
 ssl_ca_file /etc/ssl/cert.pem
 accept_encoding identity
+color 1
+basic_color terminal
+anchor_color blue
+image_color magenta
+form_color cyan
+mark_color yellow
+bg_color terminal
+active_style 1
+active_color magenta
+visited_anchor 1
+visited_color 5

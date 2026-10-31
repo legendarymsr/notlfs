@@ -1,0 +1,7 @@
+# Tokyo Night (file colors come from LF_COLORS in /etc/profile)
+set promptfmt "\033[35;1m%u\033[0m\033[90m@\033[34;1m%h\033[0m:\033[36;1m%d\033[0m\033[1m%f\033[0m"
+set cursoractivefmt "\033[30;44m"
+set cursorpreviewfmt "\033[4m"
+set borderfmt "\033[90m"
+set errorfmt "\033[1;31m"
+set drawbox
