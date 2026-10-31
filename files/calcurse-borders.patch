@@ -1,0 +1,45 @@
+diff -ru a/src/calcurse.c b/src/calcurse.c
+--- a/src/calcurse.c	2023-04-11 23:04:11.000000000 +0200
++++ b/src/calcurse.c	2026-10-31 13:37:37.532820127 +0100
+@@ -752,6 +752,7 @@
+ 		init_pair(COLR_DEFAULT, foreground, background);
+ 		init_pair(COLR_HIGH, COLOR_BLACK, COLOR_GREEN);
+ 		init_pair(COLR_CUSTOM, COLOR_RED, background);
++		init_pair(COLR_BORDER, COLORS >= 16 ? 8 : COLOR_BLUE, background); /* inactive borders: bright black */
+ 	} else {
+ 		colorize = 0;
+ 		background = COLOR_BLACK;
+diff -ru a/src/calcurse.h b/src/calcurse.h
+--- a/src/calcurse.h	2023-04-11 23:04:11.000000000 +0200
++++ b/src/calcurse.h	2026-10-31 13:37:37.532820127 +0100
+@@ -759,7 +759,8 @@
+ 	COLR_CYAN,
+ 	COLR_DEFAULT,
+ 	COLR_HIGH,
+-	COLR_CUSTOM
++	COLR_CUSTOM,
++	COLR_BORDER
+ };
+ 
+ /* Available import types. */
+diff -ru a/src/wins.c b/src/wins.c
+--- a/src/wins.c	2023-04-11 23:04:11.000000000 +0200
++++ b/src/wins.c	2026-10-31 13:37:37.532820127 +0100
+@@ -358,6 +358,8 @@
+ {
+ 	if (hilt)
+ 		custom_apply_attr(sw->win, ATTR_HIGHEST);
++	else if (colorize)
++		wattron(sw->win, COLOR_PAIR(COLR_BORDER));
+ 
+ 	box(sw->win, 0, 0);
+ 
+@@ -369,6 +371,8 @@
+ 
+ 	if (hilt)
+ 		custom_remove_attr(sw->win, ATTR_HIGHEST);
++	else if (colorize)
++		wattroff(sw->win, COLOR_PAIR(COLR_BORDER));
+ 
+ 	if (!conf.compact_panels)
+ 		print_in_middle(sw->win, 1, 0, sw->w, sw->label);
