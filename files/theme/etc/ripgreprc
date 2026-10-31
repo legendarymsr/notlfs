@@ -1,0 +1,11 @@
+# Tokyo Night ripgrep (ANSI indices -> VT palette)
+--colors=path:fg:magenta
+--colors=path:style:bold
+--colors=line:fg:green
+--colors=column:fg:yellow
+--colors=match:fg:black
+--colors=match:bg:blue
+--colors=match:style:bold
+--heading
+--line-number
+--smart-case

@@ -1,0 +1,32 @@
+# Tokyo Night git (ANSI indices -> VT palette)
+[color]
+	ui = auto
+[color "branch"]
+	current = blue bold
+	local = white
+	remote = magenta
+[color "diff"]
+	meta = blue bold
+	frag = magenta
+	func = cyan
+	old = red
+	new = green
+	whitespace = red reverse
+[color "status"]
+	header = brightblack
+	branch = blue bold
+	added = green
+	changed = yellow
+	untracked = magenta
+[color "decorate"]
+	HEAD = cyan bold
+	branch = blue bold
+	remoteBranch = magenta
+	tag = yellow bold
+[format]
+	pretty = %C(yellow)%h%C(reset) %C(blue)%ad%C(reset) %s%C(auto)%d %C(brightblack)%an
+[log]
+	date = short
+[core]
+	# BusyBox less strips SGR colors even with -R, so print colored output directly
+	pager = cat

@@ -251,7 +251,7 @@ getJ https://www.musicpd.org/download/mpd/0.23/mpd-0.23.17.tar.xz mpd-0.23.17
 get https://ftp.gnu.org/gnu/readline/readline-8.2.tar.gz readline-8.2
 [ -f $SYS/lib/libreadline.a ] || (cd readline-8.2 && ./configure --prefix=$SYS --disable-shared --enable-static --with-curses && make -j$JOBS && make install)
 get https://github.com/ncmpcpp/ncmpcpp/archive/refs/tags/0.10.1.tar.gz ncmpcpp-0.10.1
-[ -f ncmpcpp-0.10.1/src/ncmpcpp ] || (cd ncmpcpp-0.10.1 && { [ -f configure ] || autoreconf -fi; } && CPPFLAGS="-I$SYS/include -I$SYS/include/ncursesw" ncursesw_CFLAGS="-I$SYS/include/ncursesw" ncursesw_LIBS="-lncursesw" libmpdclient_CFLAGS="-I$SYS/include" libmpdclient_LIBS="-lmpdclient" LIBS="-lreadline -lncursesw" ./configure --disable-shared --enable-static --with-boost=$SYS --without-fftw --without-taglib --disable-outputs --disable-clock --enable-static-boost=yes && make -j$JOBS CXXFLAGS="-Os -fno-lto -std=c++20 -I$SYS/include" LDFLAGS="-static -all-static -fno-lto -L$SYS/lib")
+[ -f ncmpcpp-0.10.1/src/ncmpcpp ] || (cd ncmpcpp-0.10.1 && { [ -f configure ] || autoreconf -fi; } && CPPFLAGS="-I$SYS/include -I$SYS/include/ncursesw" ncursesw_CFLAGS="-I$SYS/include/ncursesw" ncursesw_LIBS="-lncursesw" libmpdclient_CFLAGS="-I$SYS/include" libmpdclient_LIBS="-lmpdclient" LIBS="-lreadline -lncursesw" ./configure --disable-shared --enable-static --with-boost=$SYS --without-fftw --without-taglib --enable-visualizer --disable-outputs --disable-clock --enable-static-boost=yes && make -j$JOBS CXXFLAGS="-Os -fno-lto -std=c++20 -I$SYS/include" LDFLAGS="-static -all-static -fno-lto -L$SYS/lib")
 )
 (
 export CC="${CROSS}gcc" CXX="${CROSS}g++" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"

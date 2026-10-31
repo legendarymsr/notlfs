@@ -1,4 +1,14 @@
-# Tokyo Night
+# Tokyo Night newsboat: layout
+feedlist-format     "%4i %n %11u  %t"
+articlelist-format  "%4i %f %D  %?T?│%-17T│ ?%t"
+feedlist-title-format    " notlfs news · %N %V   %u unread"
+articlelist-title-format " %T · %u unread"
+itemview-title-format    " %T"
+datetime-format     "%d %b"
+text-width          80
+show-read-feeds     yes
+swap-title-and-hints yes
+# colors
 color background          default default
 color listnormal          white   default
 color listfocus           black   blue    bold
@@ -11,5 +21,8 @@ color hint-keys-delimiter color8  default
 color hint-separator      color8  default
 color hint-description    white   default
 color article             white   default
+color end-of-text-marker  color8  default
 highlight article "^(Feed|Title|Author|Link|Date):" blue default bold
 highlight article "https?://[^ ]+" cyan default underline
+highlight article "^\\[[0-9]+\\]:" magenta default bold
+highlight feedlist "^ *[0-9]+ +N" magenta default bold
