@@ -1,8 +1,8 @@
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin HOME=/root LANG=C.UTF-8 EDITOR=vis VISUAL=vis
 [ -n "$TMUX" ] || export TERM=xterm-256color
-# Tokyo Night: prompt, fzf, less, ls/grep (colors are ANSI indices; the VT palette makes them Tokyo Night)
+# Tokyo Night: prompt, fzf, ls/grep (colors are ANSI indices; the VT palette makes them Tokyo Night)
 E=$(printf '\033'); PS1="\[$E[35m\]\u\[$E[90m\]@\[$E[34m\]\h \[$E[36m\]\w \[$E[32m\]#\[$E[0m\] "; unset E
 export FZF_DEFAULT_OPTS='--color=fg:-1,bg:-1,hl:blue,fg+:white,bg+:black,hl+:cyan,info:yellow,prompt:magenta,pointer:magenta,marker:green,spinner:cyan,header:bright-black,border:bright-black,gutter:-1'
-export LESS=-R LESS_TERMCAP_md=$(printf '\e[1;34m') LESS_TERMCAP_me=$(printf '\e[0m') LESS_TERMCAP_us=$(printf '\e[4;35m') LESS_TERMCAP_ue=$(printf '\e[0m') LESS_TERMCAP_so=$(printf '\e[30;46m') LESS_TERMCAP_se=$(printf '\e[0m')
+export LESS=-R  # BusyBox less: no LESS_TERMCAP/overstrike support, so no colored man headings
 export LF_COLORS='di=1;34:ln=36:ex=1;32:*.lua=35:*.jsonc=33:*.flac=35:*.webm=35'
 alias ls='ls --color=auto' grep='grep --color=auto'

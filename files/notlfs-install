@@ -16,8 +16,11 @@ if [ -z "$K" ]; then
 fi
 if [ -z "$K" ]; then
   mkdir -p /mnt/media
-  for s in /dev/sr0 /dev/sr1; do [ -b $s ] && mount -t iso9660 -o ro $s /mnt/media 2>/dev/null && break; done
-  [ -f /mnt/media/boot/bzImage ] && K=/mnt/media/boot/bzImage
+  for s in /dev/sr*; do  # any CD drive: keep the one that has the kernel
+    [ -b $s ] && mount -t iso9660 -o ro $s /mnt/media 2>/dev/null || continue
+    [ -f /mnt/media/boot/bzImage ] && { K=/mnt/media/boot/bzImage; break; }
+    umount /mnt/media
+  done
 fi
 [ -n "$K" ] || { echo "no kernel found: boot the ISO or set KERNEL=/path/to/bzImage"; exit 1; }
 
