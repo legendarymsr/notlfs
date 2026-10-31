@@ -1,23 +1,40 @@
 #!/bin/sh
-# yt: search YouTube through an Invidious instance and play with mpv (no yt-dlp).
-# yt [query]   env: YT_INSTANCES="host1 host2", YT_QUALITY=360 (max video height)
+# yt: search YouTube through Invidious and play with mpv (no yt-dlp).
+#   yt [query]      search + play         yt --refresh   re-test instances (adds api.invidious.io list)
+#   env: YT_INSTANCES="host1 host2", YT_QUALITY=360 (max video height)
+# All HTTPS goes through tget (LibreSSL, certificate verified); mpv verifies too (/etc/mpv/mpv.conf).
 . /etc/profile 2>/dev/null
-INST=${YT_INSTANCES:-$(cat /etc/yt-instances 2>/dev/null)}
+C=${XDG_CACHE_HOME:-$HOME/.cache}/yt-instances
+INST=${YT_INSTANCES:-$(cat "$C" 2>/dev/null || cat /etc/yt-instances 2>/dev/null)}
 Q=${YT_QUALITY:-360}
-api() { for h in $INST; do r=$(wget -qO- -T 12 "https://$h$1" 2>/dev/null) && case $r in \[*|\{*) H=$h; printf '%s' "$r"; return 0;; esac; done; return 1; }
+HF=${TMPDIR:-/tmp}/yt.$$; trap 'rm -f "$HF"' EXIT
+say() { printf '\033[90m%s\033[0m\n' "$*" >&2; }
+json() { case $1 in \[*|\{*) printf '%s' "$1" | jq -e 'type=="array" or (.error|not)' >/dev/null 2>&1;; *) return 1;; esac; }
+# api PATH: try every instance in order; records the one that answered in $HF
+api() { for h in $INST; do r=$(tget -t 15 "https://$h$1" 2>/dev/null) && json "$r" && { echo "$h" > "$HF"; printf '%s' "$r"; return 0; }; say "  $h: no answer, next"; done; return 1; }
+if [ "$1" = --refresh ]; then
+  cand=$( { tget https://api.invidious.io/instances.json 2>/dev/null | jq -r '.[]|select(.[1].type=="https")|.[0]'; cat /etc/yt-instances; } | awk '!s[$0]++')
+  ok=; for h in $cand; do r=$(tget -t 10 "https://$h/api/v1/search?type=video&q=test" 2>/dev/null) && json "$r" && { ok="$ok$h
+"; say "ok   $h"; } || say "fail $h"; done
+  [ -n "$ok" ] && mkdir -p "${C%/*}" && printf '%s' "$ok" > "$C" && echo "yt: $(printf '%s' "$ok" | wc -l) working instance(s) saved to $C"; exit
+fi
 q=$*; [ -n "$q" ] || { printf '\033[35msearch\033[90m›\033[0m '; read -r q; }
 [ -n "$q" ] || exit 0
 q=$(printf '%s' "$q" | jq -sRr @uri)
-res=$(api "/api/v1/search?type=video&q=$q") || { echo "yt: no Invidious instance answered ($INST)" >&2; exit 1; }
+res=$(api "/api/v1/search?type=video&q=$q") && H=$(cat "$HF") || { echo "yt: no Invidious instance answered ($INST) - try: yt --refresh" >&2; exit 1; }
 pick=$(printf '%s' "$res" | jq -r '.[] | select(.type=="video") | "\(.videoId)\t\(.lengthSeconds/60|floor):\(.lengthSeconds%60|tostring|if length<2 then "0"+. else . end)\t\(.author)\t\(.title)"' |
-  fzf --delimiter='\t' --with-nth=2.. --prompt='yt » ' --header='enter: play   esc: quit' --tabstop=2) || exit 0
+  fzf --delimiter='\t' --with-nth=2.. --prompt="yt ($H) » " --header='enter: play   esc: quit' --tabstop=2) || exit 0
 id=${pick%%	*}
-v=$(api "/api/v1/videos/$id?local=true") || { echo "yt: could not load video $id" >&2; exit 1; }
-abs() { case $1 in /*) echo "https://$H$1";; *) echo "$1";; esac; }
-vu=$(printf '%s' "$v" | jq -r --argjson q "$Q" '[.adaptiveFormats[] | select(.type|startswith("video/webm")) | select((.resolution//"0p"|rtrimstr("p")|tonumber) <= $q)] | sort_by(.resolution//"0p"|rtrimstr("p")|tonumber) | last | .url // empty')
-au=$(printf '%s' "$v" | jq -r '[.adaptiveFormats[] | select(.type|startswith("audio/webm"))] | sort_by(.bitrate|tonumber) | last | .url // empty')
-title=$(printf '%s' "$v" | jq -r .title)
-[ -n "$au" ] || { echo "yt: no playable streams for $id" >&2; exit 1; }
-echo "▶ $title"
-if [ -n "$vu" ]; then exec mpv --force-media-title="$title" --audio-file="$(abs "$au")" "$(abs "$vu")"
-else exec mpv --force-media-title="$title" --no-video "$(abs "$au")"; fi
+# playback: walk the instances until one returns streams that actually start downloading
+for h in $INST; do
+  v=$(tget -t 20 "https://$h/api/v1/videos/$id?local=true" 2>/dev/null) && json "$v" || { say "  $h: no video info, next"; continue; }
+  abs() { case $1 in /*) echo "https://$h$1";; *) echo "$1";; esac; }
+  au=$(abs "$(printf '%s' "$v" | jq -r '[.adaptiveFormats[] | select(.type|startswith("audio/webm"))] | sort_by(.bitrate|tonumber) | last | .url // empty')")
+  [ "$(tget -t 10 "$au" 2>/dev/null | head -c 4 | od -An -tx1 | tr -d ' \n')" = 1a45dfa3 ] || { say "  $h: streams blocked, next"; continue; }
+  vu=$(printf '%s' "$v" | jq -r --argjson q "$Q" '[.adaptiveFormats[] | select(.type|startswith("video/webm")) | select((.resolution//"0p"|rtrimstr("p")|tonumber) <= $q)] | sort_by(.resolution//"0p"|rtrimstr("p")|tonumber) | last | .url // empty')
+  title=$(printf '%s' "$v" | jq -r .title)
+  rm -f "$HF"; echo "▶ $title  ($h)"
+  if [ -n "$vu" ]; then exec mpv --force-media-title="$title" --audio-file="$au" "$(abs "$vu")"
+  else exec mpv --force-media-title="$title" --no-video "$au"; fi
+done
+echo "yt: no instance could play $id" >&2; exit 1

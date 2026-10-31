@@ -426,8 +426,11 @@ mkdir -p rootfs/usr/libexec rootfs/etc/dbus-1/system.d rootfs/var/lib/iwd && cp 
 cp "$TOP/files/dbus-system.conf" rootfs/etc/dbus-1/system.conf
 cp iwd-3.6/src/iwd-dbus.conf rootfs/etc/dbus-1/system.d/
 echo 'messagebus:x:81:81:dbus:/:/bin/false' >> rootfs/etc/passwd && echo 'messagebus:x:81:' >> rootfs/etc/group
+# tget: tiny cert-verifying HTTPS client (LibreSSL libtls) used by yt; CA bundle at the usual path too
+${CROSS}gcc -Os -I$SYS/include "$TOP/files/src/tget.c" -o rootfs/usr/bin/tget -static -L$SYS/lib -ltls -lssl -lcrypto -lpthread
+mkdir -p rootfs/etc/ssl/certs && ln -sf ../cert.pem rootfs/etc/ssl/certs/ca-certificates.crt
 cp "$TOP/files/yt" "$TOP/files/wifi" rootfs/usr/bin/ && cp "$TOP/files/yt-instances" rootfs/etc/yt-instances
-${CROSS}strip -s rootfs/usr/bin/dbus-daemon rootfs/usr/libexec/iwd rootfs/usr/bin/iwctl rootfs/usr/bin/ffmpeg
+${CROSS}strip -s rootfs/usr/bin/dbus-daemon rootfs/usr/libexec/iwd rootfs/usr/bin/iwctl rootfs/usr/bin/ffmpeg rootfs/usr/bin/tget
 make -C linux-$KERNEL -s modules_install INSTALL_MOD_PATH="$PWD/rootfs" INSTALL_MOD_STRIP=1 && rm -f rootfs/lib/modules/*/build rootfs/lib/modules/*/source
 # 5. initramfs
 cd rootfs
