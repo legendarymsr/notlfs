@@ -1,10 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # notlfs stage 2: one-shot setup. s6-svscan is already running the services in /run/service.
-mount -t proc proc /proc
-mount -t sysfs sys /sys
-mkdir -p /dev/pts /dev/shm
-mount -t devpts devpts /dev/pts
+# /proc /sys /dev/pts /dev/shm /tmp are mounted (nosuid,nodev,noexec) by /init
 mount -o remount,rw / 2>/dev/null
 mount -a 2>/dev/null
 mkdir -p /var/log /tmp

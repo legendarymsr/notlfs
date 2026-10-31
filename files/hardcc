@@ -1,0 +1,24 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# notlfs compiler wrapper (build.sh fills in @REAL@ @FORTIFY@ @TOP@).
+# Hardening: -fstack-protector-strong -fstack-clash-protection -D_FORTIFY_SOURCE=2 (musl has no
+# fortify of its own, fortify-headers adds it), -fPIE, and static links become static-pie with
+# full RELRO. A link that cannot be static-pie (non-PIC objects) falls back to plain -static
+# (still RELRO) and is noted in build/hardcc-fallback.log.
+# Reproducibility: the build tree path is mapped to /notlfs in debug info, __FILE__ and assert().
+link=1 pic=0 static=0
+for a; do case $a in -c|-S|-E|-M|-MM) link=0;; -fPIC|-fpic|-shared|-fno-PIE|-fno-pie|-no-pie) pic=1;; -static) static=1;; esac; done
+pie=; [ $pic = 0 ] && pie=-fPIE
+set -- -fstack-protector-strong -fstack-clash-protection -D_FORTIFY_SOURCE=2 -isystem @FORTIFY@ \
+  $pie -ffile-prefix-map=@TOP@=/notlfs "$@"
+[ $link = 1 ] && set -- "$@" -Wl,-z,relro,-z,now
+if [ $link = 1 ] && [ $static = 1 ] && [ $pic = 0 ]; then
+  n=$#; i=0
+  for a; do i=$((i+1)); [ "$a" = -static ] && a=-static-pie; set -- "$@" "$a"; done
+  shift $n
+  @REAL@ "$@" 2>/dev/null && exit 0
+  # put -static back and link the plain static way
+  n=$#; for a; do [ "$a" = -static-pie ] && a=-static; set -- "$@" "$a"; done; shift $n
+  echo "static-pie failed, static: $PWD $*" | cut -c1-300 >> @TOP@/build/hardcc-fallback.log
+fi
+exec @REAL@ "$@"

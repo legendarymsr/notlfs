@@ -1,0 +1,21 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# notlfs early boot, before s6 starts any service. Runs as rdinit=/init (live ISO) and init=/init (disk).
+# Hardened mounts, sysctl hardening, default-deny firewall, then hand off to s6.
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+mount -t devtmpfs -o nosuid,noexec dev /dev 2>/dev/null || mount -o remount,nosuid,noexec /dev
+mkdir -p /dev/pts /dev/shm /proc /sys /tmp
+mount -t proc -o nosuid,nodev,noexec proc /proc
+mount -t sysfs -o nosuid,nodev,noexec sys /sys
+mount -t securityfs -o nosuid,nodev,noexec securityfs /sys/kernel/security
+mount -t devpts -o nosuid,noexec,gid=5,mode=620,ptmxmode=666 devpts /dev/pts
+mount -t tmpfs -o nosuid,nodev,noexec,mode=1777 tmpfs /tmp
+mount -t tmpfs -o nosuid,nodev,noexec,mode=1777 shm /dev/shm
+sysctl -q -p /etc/sysctl.conf
+# firewall: drop everything inbound except replies, loopback, DHCP, some ICMP; SSH only while dropbear is enabled
+if nft -f /etc/nftables.conf; then
+  [ -e /etc/s6-linux-init/current/run-image/service/dropbear/down ] || nft add rule inet filter input tcp dport 22 accept comment '"dropbear ssh"'
+else
+  echo "notlfs: firewall rules failed to load" > /dev/console
+fi
+exec /sbin/init "$@"

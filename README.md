@@ -87,3 +87,17 @@ curl tar bzip2 xz gzip cpio make gcc flex bison bc perl python3 tic (ncurses) cm
 plus hwdata, libelf-dev and libssl-dev. On Debian/Ubuntu:
 `apt install curl bzip2 xz-utils cpio build-essential flex bison bc perl python3 ncurses-bin cmake meson ninja-build pkgconf golang gperf hwdata libelf-dev libssl-dev xorriso autoconf automake libtool`
 and Rust with the musl target for newsboat: `rustup target add x86_64-unknown-linux-musl`
+
+## Hardening
+
+- Kernel: lockdown (integrity), Yama, Landlock, no modules, no /dev/mem, /dev/port, /proc/kcore, hardened usercopy, init_on_alloc/free and similar settings.
+- sysctl (`files/sysctl.conf`): kptr/dmesg restrict, ptrace_scope=2, protected links/fifos, rp_filter, no redirects.
+- Userland: every C/C++ compile goes through `files/hardcc` (stack protector, clash protection, FORTIFY_SOURCE=2, static-pie, full RELRO).
+- Firewall: nftables default deny inbound; port 22 opens only while dropbear is enabled.
+- dropbear: key-only logins, no password logins.
+- /tmp and /dev/shm are mounted nosuid,nodev,noexec.
+- Every service logs through s6-log to /var/log/<svc>.
+
+## Reproducible
+
+See REPRODUCIBLE.md.

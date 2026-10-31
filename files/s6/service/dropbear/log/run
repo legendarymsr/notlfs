@@ -1,0 +1,3 @@
+#!/bin/sh
+mkdir -p /var/log/dropbear
+exec s6-log -b n10 s1000000 T /var/log/dropbear

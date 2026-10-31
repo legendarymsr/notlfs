@@ -2,6 +2,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Build notlfs, a tiny musl + BusyBox Linux: out/bzImage + out/initramfs.cpio.gz
 set -eu
+export PATH=$HOME/.cargo/bin:$PATH
+# Reproducible build: every input pinned (files/sources.sha256), timestamps from the last
+# commit, and the tree bind-mounted at a fixed path (/mnt/notlfs) in a private mount
+# namespace so no build directory ends up in the output. NOTLFS_NO_NS=1 skips the namespace.
+if [ -z "${NOTLFS_IN_NS:-}" ] && [ "${NOTLFS_NO_NS:-}" != 1 ]; then
+  SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct 2>/dev/null || echo 1700000000)}
+  NOTLFS_DL=$(mkdir -p "${NOTLFS_DL:-$PWD/dl}" && cd "${NOTLFS_DL:-$PWD/dl}" && pwd)
+  export SOURCE_DATE_EPOCH NOTLFS_DL NOTLFS_IN_NS=1 NOTLFS_REAL="$PWD"
+  exec unshare -rm sh -c 'mount -t tmpfs notlfs /mnt && mkdir /mnt/notlfs && mount --bind "$NOTLFS_REAL" /mnt/notlfs && cd /mnt/notlfs && exec sh ./build.sh' 
+fi
+export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)} LC_ALL=C TZ=UTC
+export KBUILD_BUILD_TIMESTAMP="$(date -u -d @$SOURCE_DATE_EPOCH)" KBUILD_BUILD_USER=notlfs KBUILD_BUILD_HOST=notlfs KBUILD_BUILD_VERSION=1
+# Go: exact toolchain (downloaded + checksum-verified by go if the host has another), no paths/VCS/build ids
+export GOTOOLCHAIN=go1.27.3 GOFLAGS="-trimpath -buildvcs=false" GOSUMDB=sum.golang.org
+umask 022
 # host deps are checked below; see README "Build host"
 for t in xorriso autoreconf cargo curl tar bzip2 xz gzip cpio make gcc flex bison bc perl python3 tic cmake meson ninja pkg-config go gperf; do
   command -v $t >/dev/null 2>&1 || MISSING="${MISSING:-} $t"
@@ -12,20 +27,46 @@ done
 if [ -n "${MISSING:-}" ]; then echo "build.sh: missing host tools:$MISSING (see README)" >&2; exit 1; fi
 
 KERNEL=6.6.160
-KERNEL_SHA256=b8334e0dd70d67f05f38d64253c9603501134655d1941616266ed1aedc292828
+RUST=1.85.1
 BUSYBOX=1.36.1
 FASTFETCH=2.50.0
-JOBS=$(nproc)
+JOBS=${JOBS:-$(nproc)}
 TOP=$(pwd)
-mkdir -p build out
+DL=${NOTLFS_DL:-$TOP/dl}
+mkdir -p build out "$DL"
+case $(rustc --version 2>/dev/null) in "rustc $RUST "*) ;; *) echo "build.sh: warning: rustc $RUST expected for a reproducible build" >&2;; esac
+# Rust: no build paths in panic strings
+export RUSTFLAGS="--remap-path-prefix=$HOME/.cargo=/cargo --remap-path-prefix=$TOP=/notlfs"
 cd build
 
+# fetch URL: download once into $DL, refuse unpinned URLs and sha256 mismatches, print the path
+fetch() {
+  want=$(awk -v u="$1" '$2==u {print $1}' "$TOP/files/sources.sha256")
+  [ -n "$want" ] || { echo "fetch: $1 is not pinned in files/sources.sha256" >&2; return 1; }
+  f="$DL/$(printf %s "$1" | sha256sum | cut -c1-12)-${1##*/}"
+  if [ ! -s "$f" ]; then curl -fL --retry 3 -o "$f.part" "$1" && mv "$f.part" "$f" || return 1; fi
+  echo "$want  $f" | sha256sum -c --quiet >&2 || { echo "fetch: sha256 MISMATCH for $1" >&2; rm -f "$f"; return 1; }
+  echo "$f"
+}
+unpack() { f=$(fetch "$1") || exit 1; tar xf "$f" --no-same-owner; }
+get() { [ -d "$2" ] || unpack "$1"; }
+getJ() { get "$@"; }
+getj() { get "$@"; }
+
 # 1. musl cross toolchain (prebuilt from musl.cc)
-[ -d x86_64-linux-musl-cross ] || curl -L https://musl.cc/x86_64-linux-musl-cross.tgz | tar xz
-CROSS=$PWD/x86_64-linux-musl-cross/bin/x86_64-linux-musl-
+get https://musl.cc/x86_64-linux-musl-cross.tgz x86_64-linux-musl-cross
+get https://github.com/jvoisin/fortify-headers/archive/refs/tags/3.0.2.tar.gz fortify-headers-3.0.2
+# hardening wrapper: every C/C++ compile goes through files/hardcc (stack protector, clash protection,
+# FORTIFY via fortify-headers, PIE, static-pie + full RELRO, build path stripped)
+mkdir -p ccwrap
+for t in x86_64-linux-musl-cross/bin/x86_64-linux-musl-*; do ln -sf "../$t" ccwrap/; done
+for t in gcc g++ cc c++; do rm -f ccwrap/x86_64-linux-musl-$t
+  sed "s|@REAL@|$PWD/x86_64-linux-musl-cross/bin/x86_64-linux-musl-$t|; s|@FORTIFY@|$PWD/fortify-headers-3.0.2/include|; s|@TOP@|$TOP|" "$TOP/files/hardcc" > ccwrap/x86_64-linux-musl-$t
+  chmod +x ccwrap/x86_64-linux-musl-$t; done
+CROSS=$PWD/ccwrap/x86_64-linux-musl-
 
 # 2. static BusyBox against musl
-[ -d busybox-$BUSYBOX ] || curl -L https://busybox.net/downloads/busybox-$BUSYBOX.tar.bz2 | tar xj
+get https://busybox.net/downloads/busybox-$BUSYBOX.tar.bz2 busybox-$BUSYBOX
 cd busybox-$BUSYBOX
 make defconfig
 sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/; s/CONFIG_TC=y/# CONFIG_TC is not set/' .config
@@ -33,7 +74,7 @@ make -j$JOBS CROSS_COMPILE=$CROSS
 cd ..
 
 # 2b. static fastfetch against musl
-[ -d fastfetch-$FASTFETCH ] || curl -L https://github.com/fastfetch-cli/fastfetch/archive/refs/tags/$FASTFETCH.tar.gz | tar xz
+get https://github.com/fastfetch-cli/fastfetch/archive/refs/tags/$FASTFETCH.tar.gz fastfetch-$FASTFETCH
 PKG_CONFIG_LIBDIR= cmake -S fastfetch-$FASTFETCH -B fastfetch-build \
   -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_C_COMPILER=${CROSS}gcc \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXE_LINKER_FLAGS=-static \
@@ -45,8 +86,6 @@ cmake --build fastfetch-build -j$JOBS --target fastfetch
 SYS=$PWD/sysroot
 export CC="${CROSS}gcc" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
 export CFLAGS="-Os -I$SYS/include -I$SYS/include/ncursesw" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=
-get() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xz; }; }
-getJ() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xJ; }; }
 printf "[binaries]\ncmake = 'false'\n" > nocmake.ini
 
 cfg() { ./configure --prefix=$SYS --disable-shared --enable-static "$@"; make -j$JOBS; make install; }
@@ -71,7 +110,7 @@ get https://github.com/ivmai/bdwgc/releases/download/v8.2.8/gc-8.2.8.tar.gz gc-8
 get https://github.com/tats/w3m/archive/refs/tags/v0.5.3+git20230121.tar.gz w3m-0.5.3-git20230121
 [ -f w3m-0.5.3-git20230121/w3m ] || (cd w3m-0.5.3-git20230121 && LIBS="-lssl -lcrypto -Wl,--allow-multiple-definition" ./configure --prefix=/usr --sysconfdir=/etc --with-gc=$SYS --with-ssl=$SYS \
   --with-termlib=ncursesw --disable-image --disable-mouse --without-migemo --disable-w3mmailer --disable-nls && make -j$JOBS)
-[ -f cacert.pem ] || curl -LO https://curl.se/ca/cacert.pem
+[ -f cacert.pem ] || cp "$(fetch https://curl.se/ca/cacert-2026-10-20.pem)" cacert.pem
 unset CC AR RANLIB CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
 
 # 2d. vis editor with static Lua 5.4 + LPeg (syntax highlighting)
@@ -92,7 +131,6 @@ unset CC AR RANLIB
 # 2e. dropbear (ssh), zlib, curl, git
 export CC="${CROSS}gcc" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
 export CFLAGS="-Os -I$SYS/include" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
-getj() { [ -d "$2" ] || { curl -L "$1" | tar xj; }; }
 
 get https://zlib.net/fossils/zlib-1.3.1.tar.gz zlib-1.3.1
 [ -f $SYS/lib/libz.a ] || (cd zlib-1.3.1 && ./configure --prefix=$SYS --static && make -j$JOBS && make install)
@@ -125,7 +163,7 @@ getJ https://github.com/irssi/irssi/releases/download/1.4.5/irssi-1.4.5.tar.xz i
   -Dwith-perl=no -Dwith-proxy=no -Dwith-otr=no -Denable-true-color=yes -Ddisable-utf8proc=yes && ninja -C _b)
 unset CC AR CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
 get https://git.sr.ht/~rjarry/aerc/archive/0.20.1.tar.gz aerc-0.20.1
-[ -f aerc-0.20.1/aerc ] || (cd aerc-0.20.1 && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o aerc .)
+[ -f aerc-0.20.1/aerc ] || (cd aerc-0.20.1 && CGO_ENABLED=0 go build -ldflags "-s -w -buildid=" -o aerc .)
 
 # 2f. mpv: ffmpeg + libass stack + libplacebo + libdrm, all static meson/autotools
 export CC="${CROSS}gcc" AR="${CROSS}ar" RANLIB="${CROSS}ranlib" CXX="${CROSS}g++"
@@ -218,18 +256,16 @@ unset CC AR RANLIB
 (
 export CC="${CROSS}gcc" CXX="${CROSS}g++" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
 export CFLAGS="-Os -I$SYS/include -I$SYS/include/ncursesw" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
-get() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xz; }; }
-getJ() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xJ; }; }
 getJ https://github.com/htop-dev/htop/releases/download/3.3.0/htop-3.3.0.tar.xz htop-3.3.0
 [ -f htop-3.3.0/htop ] || (cd htop-3.3.0 && ./configure --enable-static --enable-unicode --disable-sensors --disable-capabilities --disable-delayacct \
   LIBS="-lncursesw" HTOP_NCURSES_CONFIG_SCRIPT=/bin/false && make -j$JOBS)
 # Go programs: standard Go toolchain, CGO off, static
 mkdir -p extra-bin go-bin
-[ -f go-bin/lf ] || (CC= CGO_ENABLED=0 GOBIN=$PWD/go-bin go install -trimpath -ldflags "-s -w -X main.gVersion=r42" github.com/gokcehan/lf@r42)
-[ -f extra-bin/fzf ] || (CC= CGO_ENABLED=0 GOBIN=$PWD/extra-bin go install -trimpath -ldflags "-s -w -X main.version=0.74.5" github.com/junegunn/fzf@v0.74.5)
+[ -f go-bin/lf ] || (CC= CGO_ENABLED=0 GOBIN=$PWD/go-bin go install -ldflags "-s -w -buildid= -X main.gVersion=r42" github.com/gokcehan/lf@r42)
+[ -f extra-bin/fzf ] || (CC= CGO_ENABLED=0 GOBIN=$PWD/extra-bin go install -ldflags "-s -w -buildid= -X main.version=0.74.5" github.com/junegunn/fzf@v0.74.5)
 )
 [ -f $SYS/lib/libboost_locale.a ] || (
-[ -d boost_1_83_0 ] || curl -L --retry 3 https://archives.boost.io/release/1.83.0/source/boost_1_83_0.tar.bz2 | tar xj
+get https://archives.boost.io/release/1.83.0/source/boost_1_83_0.tar.bz2 boost_1_83_0
 cd boost_1_83_0
 echo "using gcc : musl : ${CROSS}g++ : <archiver>${CROSS}ar <ranlib>${CROSS}ranlib ;" > user-config.jam
 [ -f b2 ] || ./bootstrap.sh --with-libraries=program_options,filesystem,locale,regex,thread,system,date_time,atomic
@@ -240,8 +276,6 @@ echo "using gcc : musl : ${CROSS}g++ : <archiver>${CROSS}ar <ranlib>${CROSS}ranl
 export CC="${CROSS}gcc" CXX="${CROSS}g++" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
 export BOOST_ROOT=$SYS BOOST_INCLUDEDIR=$SYS/include BOOST_LIBRARYDIR=$SYS/lib
 export CFLAGS="-Os -I$SYS/include" CXXFLAGS="-Os -I$SYS/include" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
-get() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xz; }; }
-getJ() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xJ; }; }
 mb() { [ -f "$1/_b/.done" ] || (cd "$1" && shift && meson setup _b --native-file "$OLDPWD/nocmake.ini" --prefix=$SYS --libdir=lib \
   --default-library=static --prefer-static --buildtype=minsize --wrap-mode=nofallback "$@" && ninja -C _b install && touch _b/.done); }
 get https://github.com/fmtlib/fmt/archive/refs/tags/10.2.1.tar.gz fmt-10.2.1
@@ -262,8 +296,6 @@ get https://github.com/ncmpcpp/ncmpcpp/archive/refs/tags/0.10.1.tar.gz ncmpcpp-0
 (
 export CC="${CROSS}gcc" CXX="${CROSS}g++" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
 export CFLAGS="-Os -I$SYS/include" CXXFLAGS="-Os -I$SYS/include -I$SYS/include/ncursesw" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
-get() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xz; }; }
-getJ() { [ -d "$2" ] || { curl -L --retry 3 "$1" | tar xJ; }; }
 cfg() { ./configure --prefix=$SYS --disable-shared --enable-static "$@"; make -j$JOBS; make install; }
 pc() { printf 'prefix=%s\nName: %s\nDescription: %s\nVersion: %s\nCflags: %s\nLibs: %s\n' "$SYS" "$1" "$1" "$2" "$3" "$4" > $SYS/lib/pkgconfig/$1.pc; }
 [ -f $SYS/lib/pkgconfig/ncursesw.pc ] || pc ncursesw 6.5 "-I$SYS/include/ncursesw -I$SYS/include" "-L$SYS/lib -lncursesw"
@@ -273,8 +305,8 @@ getJ https://download.gnome.org/sources/libxml2/2.13/libxml2-2.13.5.tar.xz libxm
 [ -f $SYS/lib/libxml2.a ] || (cd libxml2-2.13.5 && cfg --without-python --without-lzma --without-icu --with-zlib=$SYS)
 get https://s3.amazonaws.com/json-c_releases/releases/json-c-0.18.tar.gz json-c-0.18
 [ -f $SYS/lib/libjson-c.a ] || (cmake -S json-c-0.18 -B jsonc-build -DCMAKE_C_COMPILER=$CC -DCMAKE_INSTALL_PREFIX=$SYS -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -DBUILD_APPS=OFF && cmake --build jsonc-build -j$JOBS && cmake --install jsonc-build)
-get https://github.com/newsboat/stfl/archive/refs/heads/master.tar.gz stfl-master
-[ -f $SYS/lib/libstfl.a ] || (cd stfl-master && make libstfl.a CC="$CC" AR="$AR" CFLAGS="-Os -I. -I$SYS/include/ncursesw -I$SYS/include -D_GNU_SOURCE -fPIC" && cp libstfl.a $SYS/lib/ && cp stfl.h $SYS/include/)
+get https://github.com/newsboat/stfl/archive/bbb2404580e845df2556560112c8aefa27494d66.tar.gz stfl-bbb2404580e845df2556560112c8aefa27494d66
+[ -f $SYS/lib/libstfl.a ] || (cd stfl-bbb2404580e845df2556560112c8aefa27494d66 && make libstfl.a CC="$CC" AR="$AR" CFLAGS="-Os -I. -I$SYS/include/ncursesw -I$SYS/include -D_GNU_SOURCE -fPIC" && cp libstfl.a $SYS/lib/ && cp stfl.h $SYS/include/)
 pc stfl 0.24 "-I$SYS/include" "-L$SYS/lib -lstfl -lncursesw"
 getJ https://newsboat.org/releases/2.41/newsboat-2.41.tar.xz newsboat-2.41
 [ -f newsboat-2.41/newsboat ] || (cd newsboat-2.41
@@ -286,7 +318,7 @@ make -j$JOBS newsboat CARGO_FLAGS="--target x86_64-unknown-linux-musl")
 # 2j. minimal extras: ripgrep fzf jq ncdu calcurse sc-im tcpdump -> build/extra-bin
 B=$PWD/extra-bin; mkdir -p $B
 export PATH=$HOME/.cargo/bin:$PATH
-for c in ripgrep:rg; do [ -f $B/${c#*:} ] || (CC_x86_64_unknown_linux_musl=$CC CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=$CC CC= CFLAGS= LDFLAGS= cargo install --locked --target x86_64-unknown-linux-musl --root $PWD/cargo-root ${c%:*} && cp cargo-root/bin/${c#*:} $B/); done
+for c in ripgrep:rg; do [ -f $B/${c#*:} ] || (CC_x86_64_unknown_linux_musl=$CC CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=$CC CC= CFLAGS= LDFLAGS= cargo install --locked --version 15.2.0 --target x86_64-unknown-linux-musl --root $PWD/cargo-root ${c%:*} && cp cargo-root/bin/${c#*:} $B/); done
 get https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-1.7.1.tar.gz jq-1.7.1
 [ -f $B/jq ] || (cd jq-1.7.1 && ./configure --disable-shared --enable-static --enable-all-static --without-oniguruma --disable-docs && make -j$JOBS && cp jq $B/)
 get https://dev.yorhel.nl/download/ncdu-1.20.tar.gz ncdu-1.20
@@ -302,31 +334,52 @@ get https://www.tcpdump.org/release/tcpdump-4.99.5.tar.gz tcpdump-4.99.5
 )
 # 2k. tig, and Wi-Fi: dbus (system bus) + iwd/iwctl, all static
 B=$PWD/extra-bin
+export CC="${CROSS}gcc" AR="${CROSS}ar" RANLIB="${CROSS}ranlib"
+export CFLAGS="-Os -I$SYS/include" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
 get https://github.com/jonas/tig/releases/download/tig-2.5.10/tig-2.5.10.tar.gz tig-2.5.10
 [ -f $B/tig ] || (cd tig-2.5.10 && ./configure CPPFLAGS="-I$SYS/include/ncursesw -I$SYS/include" LIBS="-lncursesw" --with-ncursesw --without-readline && make -j$JOBS LDFLAGS="$LDFLAGS" && cp src/tig $B/)
 getJ https://dbus.freedesktop.org/releases/dbus/dbus-1.14.10.tar.xz dbus-1.14.10
 [ -f dbus-1.14.10/bus/dbus-daemon ] || (cd dbus-1.14.10 && ./configure --prefix=$SYS --disable-shared --enable-static --disable-systemd --disable-selinux --disable-apparmor --disable-libaudit --disable-tests --disable-doxygen-docs --disable-xml-docs --without-x --disable-launchd --with-system-socket=/run/dbus/system_bus_socket --sysconfdir=/etc --localstatedir=/var EXPAT_CFLAGS=-I$SYS/include EXPAT_LIBS=-lexpat && make -j$JOBS LDFLAGS="-all-static -L$SYS/lib" && make -C dbus install && cp dbus-1.pc $SYS/lib/pkgconfig/)
 getJ https://mirrors.edge.kernel.org/pub/linux/network/wireless/iwd-3.6.tar.xz iwd-3.6
 [ -f iwd-3.6/client/iwctl ] || (cd iwd-3.6 && ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --libexecdir=/usr/libexec --disable-systemd-service --disable-manual-pages --enable-client --disable-monitor DBUS_CFLAGS="-I$SYS/include/dbus-1.0 -I$SYS/lib/dbus-1.0/include" DBUS_LIBS="-ldbus-1" READLINE_CFLAGS="-I$SYS/include" READLINE_LIBS="-lreadline -lncursesw" && make -j$JOBS LDFLAGS="-all-static -L$SYS/lib")
+# 2l. firewall: nftables (static; the one firewall tool, BusyBox has none)
+getj https://netfilter.org/projects/libmnl/files/libmnl-1.0.5.tar.bz2 libmnl-1.0.5
+[ -f $SYS/lib/libmnl.a ] || (cd libmnl-1.0.5 && cfg)
+getJ https://netfilter.org/projects/libnftnl/files/libnftnl-1.2.8.tar.xz libnftnl-1.2.8
+[ -f $SYS/lib/libnftnl.a ] || (cd libnftnl-1.2.8 && cfg)
+getJ https://netfilter.org/projects/nftables/files/nftables-1.1.1.tar.xz nftables-1.1.1
+[ -f nftables-1.1.1/src/nft ] || (cd nftables-1.1.1 && ./configure --prefix=/usr --sysconfdir=/etc --disable-shared --enable-static --with-mini-gmp \
+  --without-cli --without-json --without-xtables --disable-man-doc --disable-python && make -j$JOBS LDFLAGS="-all-static -L$SYS/lib")
+unset CC AR RANLIB CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
 
 # 3. GNU Linux-libre kernel (GPL-2.0, no blobs)
-if [ ! -d linux-$KERNEL ]; then
-  curl -LO https://linux-libre.fsfla.org/pub/linux-libre/releases/$KERNEL-gnu/linux-libre-$KERNEL-gnu.tar.xz
-  echo "$KERNEL_SHA256  linux-libre-$KERNEL-gnu.tar.xz" | sha256sum -c
-  tar xJf linux-libre-$KERNEL-gnu.tar.xz
-fi
+get https://linux-libre.fsfla.org/pub/linux-libre/releases/$KERNEL-gnu/linux-libre-$KERNEL-gnu.tar.xz linux-$KERNEL
 cd linux-$KERNEL
 make defconfig
 ./scripts/config --set-str LOCALVERSION "-catgirls" --set-str DEFAULT_HOSTNAME notlfs --set-str EXTRA_FIRMWARE "" --disable DRM_I915 --disable WERROR \
   --enable SND_HDA_GENERIC --enable DRM_FBDEV_EMULATION --enable FB --enable FRAMEBUFFER_CONSOLE \
   --enable WLAN --enable CFG80211 --enable MAC80211 --enable RFKILL --enable ATH_COMMON --enable ATH9K --enable ATH9K_PCI --enable ATH5K \
-  --module MAC80211_HWSIM \
   --enable KEYS --enable KEY_DH_OPERATIONS --enable CRYPTO_USER_API_HASH --enable CRYPTO_USER_API_SKCIPHER --enable ASYMMETRIC_KEY_TYPE \
   --enable ASYMMETRIC_PUBLIC_KEY_SUBTYPE --enable X509_CERTIFICATE_PARSER --enable PKCS7_MESSAGE_PARSER --enable PKCS8_PRIVATE_KEY_PARSER \
   --enable CRYPTO_MD4 --enable CRYPTO_MD5 --enable CRYPTO_SHA1 --enable CRYPTO_HMAC --enable CRYPTO_CMAC --enable CRYPTO_SHA256 --enable CRYPTO_SHA512 --enable CRYPTO_AES \
   --enable CRYPTO_ECB --enable CRYPTO_CBC --enable CRYPTO_DES --enable CRYPTO_ARC4
+# hardening: memory safety checks, randomization, lockdown, less attack surface (see README "Hardening")
+./scripts/config --enable HARDENED_USERCOPY --enable FORTIFY_SOURCE --enable SLAB_FREELIST_RANDOM --enable SLAB_FREELIST_HARDENED \
+  --enable SHUFFLE_PAGE_ALLOCATOR --enable INIT_ON_ALLOC_DEFAULT_ON --enable INIT_ON_FREE_DEFAULT_ON --enable RANDOMIZE_KSTACK_OFFSET_DEFAULT \
+  --enable LIST_HARDENED --enable BUG_ON_DATA_CORRUPTION --enable SCHED_STACK_END_CHECK --enable ZERO_CALL_USED_REGS --enable STACKPROTECTOR_STRONG \
+  --enable SECURITYFS --enable SECURITY_YAMA --enable SECURITY_LANDLOCK --enable SECURITY_LOCKDOWN_LSM --enable SECURITY_LOCKDOWN_LSM_EARLY \
+  --enable LOCK_DOWN_KERNEL_FORCE_INTEGRITY --disable SECURITY_SELINUX --set-str LSM "landlock,lockdown,yama" \
+  --disable KEXEC --disable KEXEC_FILE --disable CRASH_DUMP --disable DEVMEM --disable DEVPORT --disable PROC_KCORE --disable DEBUG_FS \
+  --disable IA32_EMULATION --disable X86_X32_ABI --disable MODIFY_LDT_SYSCALL --disable X86_IOPL_IOPERM --disable LEGACY_VSYSCALL_XONLY \
+  --enable LEGACY_VSYSCALL_NONE --disable COMPAT_BRK --disable USERFAULTFD --enable BPF_UNPRIV_DEFAULT_OFF --disable HIBERNATION \
+  --disable LEGACY_TIOCSTI --disable LDISC_AUTOLOAD --disable BINFMT_MISC \
+  --enable NF_CONNTRACK --enable NF_TABLES --enable NF_TABLES_INET --enable NFT_CT --enable NFT_LIMIT --enable NFT_LOG --enable NFT_REJECT \
+  --disable IP_NF_IPTABLES --disable IP6_NF_IPTABLES --disable NETFILTER_XTABLES \
+  --disable MODULES  # no loadable modules: lockdown would force module signing, and a per-build random key breaks reproducibility
+# NOTLFS_HWSIM=1: test build with simulated Wi-Fi radios built in (never for real hardware, it adds fake wlan devices)
+[ "${NOTLFS_HWSIM:-}" = 1 ] && ./scripts/config --enable MAC80211_HWSIM
 make olddefconfig
-make -j$JOBS bzImage modules
+make -j$JOBS bzImage
 cp arch/x86/boot/bzImage "$TOP/out/"
 cd ..
 
@@ -348,7 +401,7 @@ cp "$TOP/files/tmux-ws" "$TOP/files/tmux-bat" "$TOP/files/launch" rootfs/usr/bin
 mkdir -p rootfs/usr/share/alsa rootfs/usr/share/fonts rootfs/etc/mpv rootfs/var/cache/fontconfig
 cp -r stage-alsa/usr/share/alsa/. rootfs/usr/share/alsa/
 cp -r stage-fc/etc/fonts rootfs/etc/ && cp -r stage-fc/usr/share/fontconfig rootfs/usr/share/
-[ -d dejavu-fonts-ttf-2.37 ] || curl -L --retry 3 https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.tar.bz2 | tar xj
+get https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.tar.bz2 dejavu-fonts-ttf-2.37
 cp dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono.ttf dejavu-fonts-ttf-2.37/LICENSE rootfs/usr/share/fonts/
 cp "$TOP/files/mpv.conf" rootfs/etc/mpv/mpv.conf
 chmod +x rootfs/bin/tui rootfs/usr/share/udhcpc/default.script
@@ -388,7 +441,7 @@ cp -a "$TOP/files/s6/service/." s6-current/run-image/service/
 cp -a s6-current rootfs/etc/s6-linux-init/current
 for b in init halt poweroff reboot shutdown telinit; do ln -sf /etc/s6-linux-init/current/bin/$b rootfs/sbin/$b; done
 # initramfs /init: the kernel only auto-mounts devtmpfs for a disk root, so do it here, then hand off to s6
-printf '#!/bin/sh\nmount -t devtmpfs dev /dev 2>/dev/null\nexec /sbin/init "$@"\n' > rootfs/init && chmod +x rootfs/init
+cp "$TOP/files/init" rootfs/init && chmod +x rootfs/init
 # disk install: mke2fs, extlinux, syslinux BIOS modules, the installer
 rm -f rootfs/sbin/mke2fs rootfs/sbin/mkfs.ext2 && cp e2fsprogs-1.47.1/misc/mke2fs rootfs/sbin/ && ln -sf mke2fs rootfs/sbin/mkfs.ext4
 cp syslinux-6.03/extlinux-static rootfs/sbin/extlinux && ${CROSS}strip -s rootfs/sbin/mke2fs rootfs/sbin/extlinux
@@ -421,7 +474,7 @@ OS
 # Tokyo Night configs (user dotfiles for root, vis/aerc themes, ncdu.conf)
 cp -a "$TOP/files/theme/." rootfs/
 
-# wifi: kernel modules (mac80211_hwsim for testing), iwd + dbus
+# wifi: iwd + dbus (drivers are built into the kernel)
 cp dbus-1.14.10/bus/dbus-daemon iwd-3.6/client/iwctl FFmpeg-n7.1/ffmpeg rootfs/usr/bin/
 mkdir -p rootfs/usr/libexec rootfs/etc/dbus-1/system.d rootfs/var/lib/iwd && cp iwd-3.6/src/iwd rootfs/usr/libexec/
 cp "$TOP/files/dbus-system.conf" rootfs/etc/dbus-1/system.conf
@@ -430,13 +483,14 @@ echo 'messagebus:x:81:81:dbus:/:/bin/false' >> rootfs/etc/passwd && echo 'messag
 # tget: tiny cert-verifying HTTPS client (LibreSSL libtls) used by yt; CA bundle at the usual path too
 ${CROSS}gcc -Os -I$SYS/include "$TOP/files/src/tget.c" -o rootfs/usr/bin/tget -static -L$SYS/lib -ltls -lssl -lcrypto -lpthread
 mkdir -p rootfs/etc/ssl/certs && ln -sf ../cert.pem rootfs/etc/ssl/certs/ca-certificates.crt
+mkdir -p rootfs/usr/sbin && cp nftables-1.1.1/src/nft rootfs/usr/sbin/ && cp "$TOP/files/nftables.conf" "$TOP/files/sysctl.conf" rootfs/etc/
 cp "$TOP/files/yt" "$TOP/files/wifi" rootfs/usr/bin/ && cp "$TOP/files/yt-instances" rootfs/etc/yt-instances
-${CROSS}strip -s rootfs/usr/bin/dbus-daemon rootfs/usr/libexec/iwd rootfs/usr/bin/iwctl rootfs/usr/bin/ffmpeg rootfs/usr/bin/tget
-make -C linux-$KERNEL -s modules_install INSTALL_MOD_PATH="$PWD/rootfs" INSTALL_MOD_STRIP=1 && rm -f rootfs/lib/modules/*/build rootfs/lib/modules/*/source
-# 5. initramfs
+${CROSS}strip -s rootfs/usr/bin/dbus-daemon rootfs/usr/libexec/iwd rootfs/usr/bin/iwctl rootfs/usr/bin/ffmpeg rootfs/usr/bin/tget rootfs/usr/sbin/nft
+# 5. initramfs, deterministic: sorted names, every mtime = SOURCE_DATE_EPOCH, owner 0:0, fixed inode numbers
 cd rootfs
 rm -f "$TOP/out/initramfs.cpio.gz"
-find . | cpio -o -H newc -R 0:0 | xz -9e --check=crc32 > "$TOP/out/initramfs.cpio.xz"
+find . -exec touch -h -d @$SOURCE_DATE_EPOCH {} +
+find . | LC_ALL=C sort | cpio -o -H newc -R 0:0 --reproducible --quiet | xz -9e -T1 --check=crc32 > "$TOP/out/initramfs.cpio.xz"
 cd ..
 
 # 6. hybrid ISO (isolinux, BIOS; boots from CD or as a raw USB/disk image)
@@ -457,6 +511,13 @@ LABEL day
   INITRD /boot/initramfs.cpio.xz
   APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=225,245,88,140,46,152,0,55,97,255,92,162,53,164,0,55 vt.default_grn=226,42,117,108,125,84,113,96,114,71,133,118,138,99,126,96 vt.default_blu=231,101,57,62,233,241,151,191,176,116,36,41,255,255,168,191 notlfs.theme=day
 CFG
+# deterministic ISO: all dates from SOURCE_DATE_EPOCH (xorriso reads it too), fixed volume UUID, no padding
+find iso -exec touch -h -d @$SOURCE_DATE_EPOCH {} +
+D=$(date -u -d @$SOURCE_DATE_EPOCH +%Y%m%d%H%M%S00)
+rm -f "$TOP/out/notlfs.iso"
 xorriso -as mkisofs -quiet -o "$TOP/out/notlfs.iso" -V NOTLFS -isohybrid-mbr syslinux-6.03/bios/mbr/isohdpfx.bin \
-  -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table -R -J iso
+  -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table -R -J -no-pad \
+  --modification-date=$D iso
+touch -d @$SOURCE_DATE_EPOCH "$TOP/out/bzImage" "$TOP/out/initramfs.cpio.xz" "$TOP/out/notlfs.iso"
+(cd "$TOP/out" && sha256sum bzImage initramfs.cpio.xz notlfs.iso > SHA256SUMS && cat SHA256SUMS)
 echo "Done: out/bzImage out/initramfs.cpio.xz out/notlfs.iso"

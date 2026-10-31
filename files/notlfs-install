@@ -41,7 +41,7 @@ T=/mnt/target; mkdir -p $T; mount -t ext4 $P $T
 
 echo ">> copying the system"
 for d in /*; do
-  case $d in /proc|/sys|/dev|/run|/tmp|/mnt|/media|/lost+found|/init) continue;; esac
+  case $d in /proc|/sys|/dev|/run|/tmp|/mnt|/media|/lost+found) continue;; esac
   cp -a $d $T/
 done
 mkdir -p $T/proc $T/sys $T/dev $T/run $T/tmp $T/mnt $T/boot/syslinux
@@ -59,11 +59,11 @@ PROMPT 1
 TIMEOUT 30
 LABEL notlfs
   LINUX /boot/bzImage
-  APPEND root=PARTUUID=$PU rootwait rw init=/sbin/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=26,247,158,224,122,187,125,192,86,247,158,224,122,187,125,192 vt.default_grn=27,118,206,175,162,154,207,202,95,118,206,175,162,154,207,202 vt.default_blu=38,142,106,104,247,247,255,245,137,142,106,104,247,247,255,245
+  APPEND root=PARTUUID=$PU rootwait rw init=/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=26,247,158,224,122,187,125,192,86,247,158,224,122,187,125,192 vt.default_grn=27,118,206,175,162,154,207,202,95,118,206,175,162,154,207,202 vt.default_blu=38,142,106,104,247,247,255,245,137,142,106,104,247,247,255,245
 # light mode: type 'day' at the boot: prompt
 LABEL day
   LINUX /boot/bzImage
-  APPEND root=PARTUUID=$PU rootwait rw init=/sbin/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=225,245,88,140,46,152,0,55,97,255,92,162,53,164,0,55 vt.default_grn=226,42,117,108,125,84,113,96,114,71,133,118,138,99,126,96 vt.default_blu=231,101,57,62,233,241,151,191,176,116,36,41,255,255,168,191 notlfs.theme=day
+  APPEND root=PARTUUID=$PU rootwait rw init=/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=225,245,88,140,46,152,0,55,97,255,92,162,53,164,0,55 vt.default_grn=226,42,117,108,125,84,113,96,114,71,133,118,138,99,126,96 vt.default_blu=231,101,57,62,233,241,151,191,176,116,36,41,255,255,168,191 notlfs.theme=day
 CFG
 extlinux --install $T/boot/syslinux >/dev/null
 sync; umount $T
