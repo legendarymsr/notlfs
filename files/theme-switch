@@ -3,7 +3,8 @@
 # theme            - print the current theme; theme --apply re-applies the saved one
 # All TUI configs use ANSI color indices, so swapping the 16 VT colors re-themes everything;
 # only mpv's OSD uses hex colors and is rewritten here. Day tweaks: bright black is darkened
-# (a1a6c5 -> 6172b0) so dim text stays readable, and ncdu drops its yellow-on-cyan bar.
+# (a1a6c5 -> 6172b0) so dim text stays readable, and ncdu drops its yellow-on-cyan bar,
+# aerc's selected row and title bar drop bold, ncmpcpp's song lists drop per-field colors.
 NIGHT="1a1b26 f7768e 9ece6a e0af68 7aa2f7 bb9af7 7dcfff c0caf5 565f89 f7768e 9ece6a e0af68 7aa2f7 bb9af7 7dcfff c0caf5"
 DAY="e1e2e7 f52a65 587539 8c6c3e 2e7de9 9854f1 007197 3760bf 6172b0 ff4774 5c8524 a27629 358aff a463ff 007ea8 3760bf"
 SAVE=/etc/notlfs-theme SESSION=/tmp/.notlfs-theme
@@ -14,6 +15,16 @@ apply() {
   for t in /dev/tty[1-6]; do [ -w $t ] && { pal "$P"; printf '\033[m'; } > $t 2>/dev/null; done
   [ -t 1 ] && pal "$P"
   case $1 in day) nc=off;; *) nc=dark;; esac
+  # the VT draws bold as the bright color: bold fg 0 on a colored bar becomes 6172b0 on blue in day mode
+  case $1 in day) ab=false;; *) ab=true;; esac
+  A=/usr/share/aerc/stylesets/tokyonight
+  [ -w $A ] && sed -i -E "s/^(\*\.selected|title)\.bold = .*/\1.bold = $ab/" $A
+  # ncmpcpp's reversed current-item bar is light text over several colors in day mode: plain row format there
+  N=/root/.config/ncmpcpp/config
+  case $1 in day) sl='{%a - }{%t}|{%f}$R{%l}';; *) sl='{$(blue)%a$(end) $(8)-$(end) }{$(white)%t$(end)}|{$(white)%f$(end)}$R{$(cyan)%l$(end)}';; esac
+  case $1 in day) sc='(20)[]{a} (6f)[]{NE} (50)[]{t|f:Title} (20)[]{b} (7f)[]{l}';; *) sc='(20)[]{a} (6f)[green]{NE} (50)[white]{t|f:Title} (20)[cyan]{b} (7f)[magenta]{l}';; esac
+  case $1 in day) np='$5▶ ';; *) np='$b$5▶ ';; esac  # bold = bright = grey text on the bar
+  [ -w $N ] && sed -i "s#^song_list_format = .*#song_list_format = $sl#; s#^song_columns_list_format = .*#song_columns_list_format = $sc#; s#^now_playing_prefix = .*#now_playing_prefix = $np#" $N
   [ -w /etc/ncdu.conf ] && sed -i "s/^--color .*/--color $nc/" /etc/ncdu.conf
   [ -w /etc/mpv/mpv.conf ] && sed -i -E "s/^(osd|sub)-color=.*/\1-color=\"#$fg\"/; s/^(osd|sub)-border-color=.*/\1-border-color=\"#$bg\"/" /etc/mpv/mpv.conf
   # the framebuffer console only recolors on redraw: repaint every tmux client

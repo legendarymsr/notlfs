@@ -21,6 +21,8 @@ current_item_suffix = $/r$(end)
 selected_item_prefix = $(cyan)
 selected_item_suffix = $(end)
 song_list_format = {$(blue)%a$(end) $(8)-$(end) }{$(white)%t$(end)}|{$(white)%f$(end)}$R{$(cyan)%l$(end)}
+# ncmpcpp's default columns (the playlist view); theme day swaps in an uncolored copy
+song_columns_list_format = (20)[]{a} (6f)[green]{NE} (50)[white]{t|f:Title} (20)[cyan]{b} (7f)[magenta]{l}
 song_status_format = {$(magenta)%a$(end) - }{$(blue)%t$(end)}|{%f}
 progressbar_look = ─╼─
 # layout: playlist + visualizer split, alternative (big) header
