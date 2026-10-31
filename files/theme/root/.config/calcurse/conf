@@ -1,1 +1,21 @@
+# Tokyo Night: calcurse has one configurable color (borders, titles, selection, notify bar);
+# its fixed red/green/yellow/etc. come from the VT palette, which is Tokyo Night.
 appearance.theme=blue on default
+appearance.compactpanels=no
+appearance.headerline=yes
+appearance.eventseparator=yes
+appearance.dayseparator=yes
+appearance.emptyline=yes
+appearance.emptyday=--
+appearance.notifybar=yes
+appearance.headingpos=right-justified
+appearance.calendarview=monthly
+appearance.todoview=show-completed
+appearance.layout=1
+appearance.sidebarwidth=0
+appearance.defaultpanel=calendar
+format.notifydate=%a %F
+format.notifytime=%T
+format.outputdate=%D
+format.inputdate=4
+general.firstdayofweek=monday

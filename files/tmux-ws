@@ -1,0 +1,10 @@
+#!/bin/sh
+# tmux-ws go|move N SESSION PANE : i3/dwm-style workspaces on tmux windows (created on demand)
+a=$1 n=$2 s=$3 p=$4
+has() { tmux list-windows -t "$s" -F '#I' | grep -qx "$n"; }
+case $a in
+  go)   has && tmux select-window -t "$s:=$n" || tmux new-window -t "$s:$n" ;;
+  move) if has; then tmux join-pane -h -s "$p" -t "$s:=$n" && tmux select-layout -t "$s:=$n" main-vertical
+        else tmux break-pane -d -s "$p" -t "$s:$n"; fi
+        tmux select-layout -t "$s" main-vertical 2>/dev/null; true ;;
+esac

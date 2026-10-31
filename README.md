@@ -21,6 +21,12 @@ License: build scripts GPL-3.0-or-later. The kernel (Linux-libre) is GPL-2.0-onl
 
 tmux prefix is Ctrl-B (Ctrl-A is QEMU's escape key): `Ctrl-B %` splits side by side, `Ctrl-B "` splits top/bottom, mouse works. Try `w3m https://example.com`.
 
+### Tiling tmux (Alt keys, no prefix)
+tmux on the console acts like a small tiling WM (Tokyo Night themed; `Alt+?` shows this list from `/etc/motd`):
+`Alt+Enter` new pane (auto-tiles master/stack like dwm) · `Alt+h/j/k/l` focus · `Alt+Shift+h/j/k/l` swap ·
+`Alt+Ctrl+h/j/k/l` or `Alt+r` then hjkl resize · `Alt+1..9` workspace · `Alt+Shift+1..9` send pane to workspace ·
+`Alt+q` close · `Alt+f` fullscreen · `Alt+Space` next layout · `Alt+t` re-tile · `Alt+d` fzf launcher · `Alt+e` lf · `Alt+b` w3m.
+
 Extras:
 - `ssh root@127.0.0.1 -p 2223` from the host (run.sh forwards it). Root has no password: put your key in `/root/.ssh/authorized_keys`. Host keys are generated on first connect.
 - `git clone https://...` works (curl + LibreSSL).

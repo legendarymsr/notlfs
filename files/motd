@@ -1,0 +1,12 @@
+notlfs tmux "WM" keys (Alt = Meta, no prefix; C-b prefix still works)
+
+  Alt+Enter          new shell pane (auto-tiles: master left, stack right)
+  Alt+h/j/k/l        focus left/down/up/right
+  Alt+Shift+h/j/k/l  swap pane left/down/up/right
+  Alt+Ctrl+h/j/k/l   resize        Alt+r  resize mode (hjkl, Esc leaves)
+  Alt+1..9           go to workspace (window) N, made if missing
+  Alt+Shift+1..9     send pane to workspace N
+  Alt+q              close pane    Alt+f  fullscreen (zoom) toggle
+  Alt+Space          next layout   Alt+t  back to master/stack tiling
+  Alt+d              launcher (fzf popup)
+  Alt+e lf   Alt+b w3m   Alt+?  this help      mouse: click/drag/scroll

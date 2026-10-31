@@ -1,0 +1,3 @@
+#!/bin/sh
+# battery for the tmux bar; prints nothing on machines without one
+for b in /sys/class/power_supply/BAT*; do [ -r $b/capacity ] && printf 'bat %s%% ' "$(cat $b/capacity)" && exit; done

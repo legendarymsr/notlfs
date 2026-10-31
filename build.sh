@@ -322,6 +322,7 @@ cp busybox-$BUSYBOX/examples/udhcp/simple.script rootfs/usr/share/udhcpc/default
 cp "$TOP/files/tmux.conf" "$TOP/files/profile" rootfs/etc/
 cp "$TOP/files/w3m-config" rootfs/etc/w3m/config
 cp "$TOP/files/tui" rootfs/bin/tui && cp "$TOP/files/rootsh" rootfs/bin/rootsh
+cp "$TOP/files/tmux-ws" "$TOP/files/tmux-bat" "$TOP/files/launch" rootfs/usr/bin/ && chmod +x rootfs/usr/bin/tmux-ws rootfs/usr/bin/tmux-bat rootfs/usr/bin/launch && cp "$TOP/files/motd" rootfs/etc/motd && cp "$TOP/files/us-altshift.bmap" rootfs/etc/
 # audio (ALSA config), fonts (fontconfig + DejaVu Sans Mono), mpv defaults
 mkdir -p rootfs/usr/share/alsa rootfs/usr/share/fonts rootfs/etc/mpv rootfs/var/cache/fontconfig
 cp -r stage-alsa/usr/share/alsa/. rootfs/usr/share/alsa/

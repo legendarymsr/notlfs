@@ -1,0 +1,7 @@
+#!/bin/sh
+# Alt+d launcher: pick an installed TUI program with fzf, open it in a new tiled pane
+. /etc/profile
+apps="htop lf vis w3m ncmpcpp newsboat aerc irssi calcurse sc-im ncdu fastfetch mpv tcpdump jq git sh"
+c=$(for a in $apps; do command -v $a >/dev/null && echo $a; done | fzf --prompt='run> ' --reverse --no-info) || exit 0
+case $c in fastfetch) c='fastfetch; read -r _' ;; esac
+tmux split-window -h -c "#{pane_current_path}" "$c"
