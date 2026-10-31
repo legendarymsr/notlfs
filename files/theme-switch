@@ -2,9 +2,10 @@
 # theme day|night  - switch Tokyo Night (dark) / Tokyo Night Day (light), live and persistent
 # theme            - print the current theme; theme --apply re-applies the saved one
 # All TUI configs use ANSI color indices, so swapping the 16 VT colors re-themes everything;
-# only mpv's OSD uses hex colors and is rewritten here.
+# only mpv's OSD uses hex colors and is rewritten here. Day tweaks: bright black is darkened
+# (a1a6c5 -> 6172b0) so dim text stays readable, and ncdu drops its yellow-on-cyan bar.
 NIGHT="1a1b26 f7768e 9ece6a e0af68 7aa2f7 bb9af7 7dcfff c0caf5 565f89 f7768e 9ece6a e0af68 7aa2f7 bb9af7 7dcfff c0caf5"
-DAY="e1e2e7 f52a65 587539 8c6c3e 2e7de9 9854f1 007197 3760bf a1a6c5 ff4774 5c8524 a27629 358aff a463ff 007ea8 3760bf"
+DAY="e1e2e7 f52a65 587539 8c6c3e 2e7de9 9854f1 007197 3760bf 6172b0 ff4774 5c8524 a27629 358aff a463ff 007ea8 3760bf"
 SAVE=/etc/notlfs-theme SESSION=/tmp/.notlfs-theme
 cur() { cat $SESSION 2>/dev/null || cat $SAVE 2>/dev/null || echo night; }
 pal() { i=0; for c in $1; do printf '\033]P%X%s' $i $c; i=$((i+1)); done; }
@@ -12,6 +13,8 @@ apply() {
   case $1 in day) P=$DAY fg=3760bf bg=e1e2e7;; *) P=$NIGHT fg=c0caf5 bg=1a1b26;; esac
   for t in /dev/tty[1-6]; do [ -w $t ] && { pal "$P"; printf '\033[m'; } > $t 2>/dev/null; done
   [ -t 1 ] && pal "$P"
+  case $1 in day) nc=off;; *) nc=dark;; esac
+  [ -w /etc/ncdu.conf ] && sed -i "s/^--color .*/--color $nc/" /etc/ncdu.conf
   [ -w /etc/mpv/mpv.conf ] && sed -i -E "s/^(osd|sub)-color=.*/\1-color=\"#$fg\"/; s/^(osd|sub)-border-color=.*/\1-border-color=\"#$bg\"/" /etc/mpv/mpv.conf
   # the framebuffer console only recolors on redraw: repaint every tmux client
   for c in $(tmux list-clients -F "#{client_name}" 2>/dev/null); do tmux refresh-client -t "$c"; done

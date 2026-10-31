@@ -455,7 +455,7 @@ LABEL notlfs
 LABEL day
   LINUX /boot/bzImage
   INITRD /boot/initramfs.cpio.xz
-  APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=225,245,88,140,46,152,0,55,161,255,92,162,53,164,0,55 vt.default_grn=226,42,117,108,125,84,113,96,166,71,133,118,138,99,126,96 vt.default_blu=231,101,57,62,233,241,151,191,197,116,36,41,255,255,168,191 notlfs.theme=day
+  APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=225,245,88,140,46,152,0,55,97,255,92,162,53,164,0,55 vt.default_grn=226,42,117,108,125,84,113,96,114,71,133,118,138,99,126,96 vt.default_blu=231,101,57,62,233,241,151,191,176,116,36,41,255,255,168,191 notlfs.theme=day
 CFG
 xorriso -as mkisofs -quiet -o "$TOP/out/notlfs.iso" -V NOTLFS -isohybrid-mbr syslinux-6.03/bios/mbr/isohdpfx.bin \
   -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table -R -J iso
