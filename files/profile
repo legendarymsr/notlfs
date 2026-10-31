@@ -10,3 +10,5 @@ alias ls='ls --color=auto' grep='grep --color=auto'
 export JQ_COLORS='0;90:0;31:0;32:0;33:0;32:1;37:1;37:1;34' RIPGREP_CONFIG_PATH=/etc/ripgreprc
 # dmesg: dim timestamps, red errors/failures, yellow warnings (BusyBox dmesg has no color)
 dmesg() { local e; e=$(printf '\033'); command dmesg "$@" | sed -E "s/^\[[^]]*\]/$e[90m&$e[0m/; s/([Ee]rror|[Ff]ail[a-z]*)/$e[1;31m&$e[0m/g; s/([Ww]arn[a-z]*)/$e[33m&$e[0m/g; s/(Unstable|unknown)/$e[33m&$e[0m/g"; }
+# Tokyo Night / Tokyo Night Day: re-apply the chosen palette (theme day|night switches)
+case $(tty 2>/dev/null) in /dev/tty[0-9]*) [ -n "$TMUX" ] || theme --apply;; esac

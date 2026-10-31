@@ -341,6 +341,7 @@ cp cacert.pem rootfs/etc/ssl/cert.pem
 cp busybox-$BUSYBOX/examples/udhcp/simple.script rootfs/usr/share/udhcpc/default.script
 cp "$TOP/files/tmux.conf" "$TOP/files/profile" rootfs/etc/
 cp "$TOP/files/w3m-config" rootfs/etc/w3m/config
+cp "$TOP/files/theme-switch" rootfs/usr/bin/theme && chmod +x rootfs/usr/bin/theme
 cp "$TOP/files/tui" rootfs/bin/tui && cp "$TOP/files/rootsh" rootfs/bin/rootsh
 cp "$TOP/files/tmux-ws" "$TOP/files/tmux-bat" "$TOP/files/launch" rootfs/usr/bin/ && chmod +x rootfs/usr/bin/tmux-ws rootfs/usr/bin/tmux-bat rootfs/usr/bin/launch && cp "$TOP/files/motd" rootfs/etc/motd && cp "$TOP/files/us-altshift.bmap" rootfs/etc/
 # audio (ALSA config), fonts (fontconfig + DejaVu Sans Mono), mpv defaults
@@ -444,12 +445,17 @@ cp "$TOP/out/bzImage" "$TOP/out/initramfs.cpio.xz" iso/boot/
 cp syslinux-6.03/bios/core/isolinux.bin syslinux-6.03/bios/com32/elflink/ldlinux/ldlinux.c32 iso/isolinux/
 cat > iso/isolinux/isolinux.cfg <<'CFG'
 DEFAULT notlfs
-PROMPT 0
+PROMPT 1
 TIMEOUT 30
 LABEL notlfs
   LINUX /boot/bzImage
   INITRD /boot/initramfs.cpio.xz
   APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=26,247,158,224,122,187,125,192,86,247,158,224,122,187,125,192 vt.default_grn=27,118,206,175,162,154,207,202,95,118,206,175,162,154,207,202 vt.default_blu=38,142,106,104,247,247,255,245,137,142,106,104,247,247,255,245
+# light mode: type 'day' at the boot: prompt
+LABEL day
+  LINUX /boot/bzImage
+  INITRD /boot/initramfs.cpio.xz
+  APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=225,245,88,140,46,152,0,55,161,255,92,162,53,164,0,55 vt.default_grn=226,42,117,108,125,84,113,96,166,71,133,118,138,99,126,96 vt.default_blu=231,101,57,62,233,241,151,191,197,116,36,41,255,255,168,191 notlfs.theme=day
 CFG
 xorriso -as mkisofs -quiet -o "$TOP/out/notlfs.iso" -V NOTLFS -isohybrid-mbr syslinux-6.03/bios/mbr/isohdpfx.bin \
   -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table -R -J iso
