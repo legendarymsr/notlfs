@@ -1,0 +1,5 @@
+#!/bin/sh
+# iwd needs the system bus; wait for its socket
+until [ -S /run/dbus/system_bus_socket ]; do sleep 0.2; done
+mkdir -p /var/lib/iwd
+exec /usr/libexec/iwd 2>&1

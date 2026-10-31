@@ -10,3 +10,4 @@ notlfs tmux "WM" keys (Alt = Meta, no prefix; C-b prefix still works)
   Alt+Space          next layout   Alt+t  back to master/stack tiling
   Alt+d              launcher (fzf popup)
   Alt+e lf   Alt+b w3m   Alt+?  this help      mouse: click/drag/scroll
+  Alt+w wifi (iwd)   yt <query>  YouTube via Invidious   tig  git browser

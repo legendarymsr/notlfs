@@ -1,0 +1,17 @@
+#!/bin/sh
+# wifi: pick a network with fzf and connect through iwd (Alt+w)
+. /etc/profile 2>/dev/null
+iw() { timeout 15 iwctl "$@" | sed 's/\x1b\[[0-9;]*m//g'; }
+dev=$(iw device list | awk '$NF=="station"{print $1; exit}')
+if [ -z "$dev" ]; then
+  echo "wifi: no wireless station device."
+  echo "  iwd running?  s6-svstat /run/service/iwd"
+  echo "  driver?       notlfs is linux-libre: only cards that need no firmware blobs work (e.g. ath9k)"
+  read -r _; exit 1
+fi
+iw station "$dev" scan; sleep 3
+net=$(iw station "$dev" get-networks | awk 'NR>4 && NF>=3' | sed 's/^ *>* *//' |
+  fzf --prompt="wifi ($dev) » " --header='enter: connect   esc: quit' | awk '{NF-=2; print}') || exit 0
+[ -n "$net" ] || exit 0
+timeout 60 iwctl station "$dev" connect "$net"; sleep 3  # iwd does DHCP (/etc/iwd/main.conf)
+iw station "$dev" show; read -r _

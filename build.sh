@@ -133,15 +133,21 @@ export CFLAGS="-Os -I$SYS/include" CXXFLAGS="-Os -I$SYS/include" LDFLAGS="-stati
 mb() { [ -f "$1/_b/.done" ] || (cd "$1" && shift && meson setup _b --native-file "$OLDPWD/nocmake.ini" --prefix=$SYS --libdir=lib \
   --default-library=static --prefer-static --buildtype=minsize --wrap-mode=nofallback "$@" && ninja -C _b install && touch _b/.done); }
 
+# libvpx (VP8/VP9) + libopus: free encoders for the ffmpeg CLI (webm)
+get https://github.com/webmproject/libvpx/archive/refs/tags/v1.14.1.tar.gz libvpx-1.14.1
+[ -f $SYS/lib/libvpx.a ] || (cd libvpx-1.14.1 && ./configure --prefix=$SYS --target=generic-gnu --disable-shared --enable-static --disable-examples --disable-tools --disable-docs --disable-unit-tests --enable-vp8 --enable-vp9 --enable-pic && make -j$JOBS && make install)
+get https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz opus-1.5.2
+[ -f $SYS/lib/libopus.a ] || (cd opus-1.5.2 && ./configure --prefix=$SYS --disable-shared --enable-static --disable-doc --disable-extra-programs && make -j$JOBS && make install)
 get https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz FFmpeg-n7.1
-[ -f FFmpeg-n7.1/.slim ] || (cd FFmpeg-n7.1 && { make distclean >/dev/null 2>&1 || true; } && ./configure --prefix=$SYS --cc="$CC" --ar="$AR" \
-  --ranlib="$RANLIB" --pkg-config=pkg-config --pkg-config-flags=--static --enable-static --disable-shared --disable-programs --disable-doc \
-  --disable-autodetect --disable-x86asm --disable-network --enable-zlib --disable-everything --enable-filters --enable-bsfs \
+[ -f FFmpeg-n7.1/.cli ] || (cd FFmpeg-n7.1 && { make distclean >/dev/null 2>&1 || true; } && ./configure --prefix=$SYS --cc="$CC" --ar="$AR" \
+  --ranlib="$RANLIB" --pkg-config=pkg-config --pkg-config-flags=--static --enable-static --disable-shared --disable-ffplay --disable-ffprobe --disable-doc \
+  --disable-autodetect --disable-x86asm --enable-zlib --enable-libtls --enable-libvpx --enable-libopus --disable-everything --enable-filters --enable-bsfs \
   --enable-decoder=h264,hevc,vp8,vp9,mpeg4,mpeg1video,mpeg2video,mjpeg,png,theora,rawvideo,wrapped_avframe,aac,mp3,mp3float,opus,vorbis,flac,ac3,eac3,pcm_s16le,pcm_s24le,pcm_f32le,ass,ssa,subrip,webvtt,movtext \
   --enable-demuxer=mov,matroska,mp3,ogg,flac,wav,avi,mpegts,mpegps,aac,ass,srt,webvtt,image2,concat \
   --enable-parser=h264,hevc,vp8,vp9,mpeg4video,mpegvideo,aac,mpegaudio,opus,vorbis,flac,ac3,png,mjpeg \
-  --enable-encoder=png,mjpeg --enable-protocol=file,pipe --enable-indev=lavfi \
-  --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" && make -j$JOBS && make install && touch .slim)
+  --enable-encoder=png,mjpeg,libvpx_vp8,libvpx_vp9,libopus,flac,vorbis,ffv1,pcm_s16le,wrapped_avframe \
+  --enable-muxer=webm,matroska,ogg,opus,flac,wav,null,image2 --enable-demuxer=hls --enable-protocol=file,pipe,http,https,tcp,tls,hls,crypto --enable-indev=lavfi \
+  --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" && make -j$JOBS && make install && touch .cli)
 
 getJ https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz freetype-2.13.3
 mb freetype-2.13.3 -Dbrotli=disabled -Dbzip2=disabled -Dharfbuzz=disabled -Dpng=disabled -Dzlib=disabled
@@ -294,6 +300,14 @@ get https://www.tcpdump.org/release/libpcap-1.10.5.tar.gz libpcap-1.10.5
 get https://www.tcpdump.org/release/tcpdump-4.99.5.tar.gz tcpdump-4.99.5
 [ -f $B/tcpdump ] || (cd tcpdump-4.99.5 && ./configure --without-crypto --with-pcap=$SYS && make -j$JOBS && cp tcpdump $B/)
 )
+# 2k. tig, and Wi-Fi: dbus (system bus) + iwd/iwctl, all static
+B=$PWD/extra-bin
+get https://github.com/jonas/tig/releases/download/tig-2.5.10/tig-2.5.10.tar.gz tig-2.5.10
+[ -f $B/tig ] || (cd tig-2.5.10 && ./configure CPPFLAGS="-I$SYS/include/ncursesw -I$SYS/include" LIBS="-lncursesw" --with-ncursesw --without-readline && make -j$JOBS LDFLAGS="$LDFLAGS" && cp src/tig $B/)
+getJ https://dbus.freedesktop.org/releases/dbus/dbus-1.14.10.tar.xz dbus-1.14.10
+[ -f dbus-1.14.10/bus/dbus-daemon ] || (cd dbus-1.14.10 && ./configure --prefix=$SYS --disable-shared --enable-static --disable-systemd --disable-selinux --disable-apparmor --disable-libaudit --disable-tests --disable-doxygen-docs --disable-xml-docs --without-x --disable-launchd --with-system-socket=/run/dbus/system_bus_socket --sysconfdir=/etc --localstatedir=/var EXPAT_CFLAGS=-I$SYS/include EXPAT_LIBS=-lexpat && make -j$JOBS LDFLAGS="-all-static -L$SYS/lib" && make -C dbus install && cp dbus-1.pc $SYS/lib/pkgconfig/)
+getJ https://mirrors.edge.kernel.org/pub/linux/network/wireless/iwd-3.6.tar.xz iwd-3.6
+[ -f iwd-3.6/client/iwctl ] || (cd iwd-3.6 && ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --libexecdir=/usr/libexec --disable-systemd-service --disable-manual-pages --enable-client --disable-monitor DBUS_CFLAGS="-I$SYS/include/dbus-1.0 -I$SYS/lib/dbus-1.0/include" DBUS_LIBS="-ldbus-1" READLINE_CFLAGS="-I$SYS/include" READLINE_LIBS="-lreadline -lncursesw" && make -j$JOBS LDFLAGS="-all-static -L$SYS/lib")
 
 # 3. GNU Linux-libre kernel (GPL-2.0, no blobs)
 if [ ! -d linux-$KERNEL ]; then
@@ -304,9 +318,15 @@ fi
 cd linux-$KERNEL
 make defconfig
 ./scripts/config --set-str LOCALVERSION "-catgirls" --set-str DEFAULT_HOSTNAME notlfs --set-str EXTRA_FIRMWARE "" --disable DRM_I915 --disable WERROR \
-  --enable SND_HDA_GENERIC --enable DRM_FBDEV_EMULATION --enable FB --enable FRAMEBUFFER_CONSOLE
+  --enable SND_HDA_GENERIC --enable DRM_FBDEV_EMULATION --enable FB --enable FRAMEBUFFER_CONSOLE \
+  --enable WLAN --enable CFG80211 --enable MAC80211 --enable RFKILL --enable ATH_COMMON --enable ATH9K --enable ATH9K_PCI --enable ATH5K \
+  --module MAC80211_HWSIM \
+  --enable KEYS --enable KEY_DH_OPERATIONS --enable CRYPTO_USER_API_HASH --enable CRYPTO_USER_API_SKCIPHER --enable ASYMMETRIC_KEY_TYPE \
+  --enable ASYMMETRIC_PUBLIC_KEY_SUBTYPE --enable X509_CERTIFICATE_PARSER --enable PKCS7_MESSAGE_PARSER --enable PKCS8_PRIVATE_KEY_PARSER \
+  --enable CRYPTO_MD4 --enable CRYPTO_MD5 --enable CRYPTO_SHA1 --enable CRYPTO_HMAC --enable CRYPTO_CMAC --enable CRYPTO_SHA256 --enable CRYPTO_SHA512 --enable CRYPTO_AES \
+  --enable CRYPTO_ECB --enable CRYPTO_CBC --enable CRYPTO_DES --enable CRYPTO_ARC4
 make olddefconfig
-make -j$JOBS bzImage
+make -j$JOBS bzImage modules
 cp arch/x86/boot/bzImage "$TOP/out/"
 cd ..
 
@@ -360,7 +380,7 @@ for app in $(rootfs/bin/busybox --list-full); do ln -sf /bin/busybox "rootfs/$ap
 # s6 as init: s6-linux-init-maker writes /etc/s6-linux-init/current, our services go in its run-image
 cp -a stage-s6/usr/bin/. rootfs/usr/bin/
 rm -f rootfs/sbin/init rootfs/sbin/halt rootfs/sbin/poweroff rootfs/sbin/reboot rootfs/linuxrc
-mkdir -p rootfs/etc/s6-linux-init rootfs/run rootfs/var/log rootfs/mnt
+mkdir -p rootfs/etc/s6-linux-init rootfs/run rootfs/var/log rootfs/mnt && ln -sfn ../run rootfs/var/run
 rm -rf s6-current && stage-s6/usr/bin/s6-linux-init-maker -c /etc/s6-linux-init/current -p /usr/bin:/usr/sbin:/bin:/sbin -1 \
   -f "$TOP/files/s6/skel" -D default s6-current
 cp -a "$TOP/files/s6/service/." s6-current/run-image/service/
@@ -400,6 +420,15 @@ OS
 # Tokyo Night configs (user dotfiles for root, vis/aerc themes, ncdu.conf)
 cp -a "$TOP/files/theme/." rootfs/
 
+# wifi: kernel modules (mac80211_hwsim for testing), iwd + dbus
+cp dbus-1.14.10/bus/dbus-daemon iwd-3.6/client/iwctl FFmpeg-n7.1/ffmpeg rootfs/usr/bin/
+mkdir -p rootfs/usr/libexec rootfs/etc/dbus-1/system.d rootfs/var/lib/iwd && cp iwd-3.6/src/iwd rootfs/usr/libexec/
+cp "$TOP/files/dbus-system.conf" rootfs/etc/dbus-1/system.conf
+cp iwd-3.6/src/iwd-dbus.conf rootfs/etc/dbus-1/system.d/
+echo 'messagebus:x:81:81:dbus:/:/bin/false' >> rootfs/etc/passwd && echo 'messagebus:x:81:' >> rootfs/etc/group
+cp "$TOP/files/yt" "$TOP/files/wifi" rootfs/usr/bin/ && cp "$TOP/files/yt-instances" rootfs/etc/yt-instances
+${CROSS}strip -s rootfs/usr/bin/dbus-daemon rootfs/usr/libexec/iwd rootfs/usr/bin/iwctl rootfs/usr/bin/ffmpeg
+make -C linux-$KERNEL -s modules_install INSTALL_MOD_PATH="$PWD/rootfs" INSTALL_MOD_STRIP=1 && rm -f rootfs/lib/modules/*/build rootfs/lib/modules/*/source
 # 5. initramfs
 cd rootfs
 rm -f "$TOP/out/initramfs.cpio.gz"

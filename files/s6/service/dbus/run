@@ -1,0 +1,4 @@
+#!/bin/sh
+mkdir -p /run/dbus /var/lib/dbus
+[ -s /etc/machine-id ] || tr -d - < /proc/sys/kernel/random/uuid > /etc/machine-id
+exec dbus-daemon --config-file=/etc/dbus-1/system.conf --nofork --nopidfile 2>&1
