@@ -486,6 +486,9 @@ mkdir -p rootfs/etc/ssl/certs && ln -sf ../cert.pem rootfs/etc/ssl/certs/ca-cert
 mkdir -p rootfs/usr/sbin && cp nftables-1.1.1/src/nft rootfs/usr/sbin/ && cp "$TOP/files/nftables.conf" "$TOP/files/sysctl.conf" rootfs/etc/
 cp "$TOP/files/yt" "$TOP/files/wifi" rootfs/usr/bin/ && cp "$TOP/files/yt-instances" rootfs/etc/yt-instances
 ${CROSS}strip -s rootfs/usr/bin/dbus-daemon rootfs/usr/libexec/iwd rootfs/usr/bin/iwctl rootfs/usr/bin/ffmpeg rootfs/usr/bin/tget rootfs/usr/sbin/nft
+# no dynamic loader on notlfs: refuse to ship any ELF that asks for one
+bad=$(find rootfs -type f -exec sh -c 'for f; do readelf -l "$f" 2>/dev/null | grep -q "program interpreter" && echo "$f"; done; :' _ {} +)
+[ -z "$bad" ] || { echo "dynamically linked binaries in rootfs: $bad" >&2; exit 1; }
 # 5. initramfs, deterministic: sorted names, every mtime = SOURCE_DATE_EPOCH, owner 0:0, fixed inode numbers
 cd rootfs
 rm -f "$TOP/out/initramfs.cpio.gz"

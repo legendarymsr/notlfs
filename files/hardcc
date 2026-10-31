@@ -14,8 +14,10 @@ set -- -fstack-protector-strong -fstack-clash-protection -D_FORTIFY_SOURCE=2 -is
 [ $link = 1 ] && set -- "$@" -Wl,-z,relro,-z,now
 if [ $link = 1 ] && [ $static = 1 ] && [ $pic = 0 ]; then
   n=$#; i=0
-  for a; do i=$((i+1)); [ "$a" = -static ] && a=-static-pie; set -- "$@" "$a"; done
-  shift $n
+  # a bare -pie (vis's configure adds one) after -static-pie would turn the link back into a
+  # dynamic PIE with a PT_INTERP of /lib/ld-musl, which notlfs does not ship: drop it
+  for a; do i=$((i+1)); [ "$a" = -static ] && a=-static-pie; [ "$a" = -pie ] || set -- "$@" "$a"; done
+  shift $i
   @REAL@ "$@" 2>/dev/null && exit 0
   # put -static back and link the plain static way
   n=$#; for a; do [ "$a" = -static-pie ] && a=-static; set -- "$@" "$a"; done; shift $n
