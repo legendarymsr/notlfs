@@ -101,3 +101,14 @@ and Rust with the musl target for newsboat: `rustup target add x86_64-unknown-li
 ## Reproducible
 
 See REPRODUCIBLE.md.
+
+## Documentation
+
+Full docs live in [`docs/`](docs/):
+
+- [Overview](docs/overview.md) — what notlfs is, the kernel, the big pieces.
+- [Design decisions & rationale](docs/design-decisions.md) — the *why* behind musl, BusyBox, s6, Linux-libre, TTY-only, tmux, root-only, extlinux, vis, free formats, and the "no duplicate tools" philosophy.
+- [Building](docs/building.md) — running `build.sh`, what you get, and reproducible builds.
+- [Hardening](docs/hardening.md) — kernel lockdown, sysctl, `hardcc`, nftables, dropbear, and more.
+- [Installed packages & tools](docs/packages.md) — the full list of what's in the image.
+- [Usage basics](docs/usage.md) — booting, tmux as a WM, theme switching, the `yt` script, email/IRC/SSH.
