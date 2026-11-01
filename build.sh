@@ -400,6 +400,10 @@ cp "$TOP/files/w3m-config" rootfs/etc/w3m/config
 cp "$TOP/files/theme-switch" rootfs/usr/bin/theme && chmod +x rootfs/usr/bin/theme
 cp "$TOP/files/tui" rootfs/bin/tui && cp "$TOP/files/rootsh" rootfs/bin/rootsh
 cp "$TOP/files/tmux-ws" "$TOP/files/tmux-bat" "$TOP/files/launch" rootfs/usr/bin/ && chmod +x rootfs/usr/bin/tmux-ws rootfs/usr/bin/tmux-bat rootfs/usr/bin/launch && cp "$TOP/files/motd" rootfs/etc/motd && cp "$TOP/files/us-altshift.bmap" rootfs/etc/
+# console font: Terminus 14x28 (OFL), ~91x28 on a 1280x800 console; rc.init loads it on tty1/tty2
+get https://downloads.sourceforge.net/project/terminus-font/terminus-font-4.49/terminus-font-4.49.1.tar.gz terminus-font-4.49.1
+[ -f terminus-font-4.49.1/ter-v28n.psf ] || (cd terminus-font-4.49.1 && ./configure >/dev/null && make ter-v28n.psf >/dev/null)
+mkdir -p rootfs/usr/share/consolefonts && cp terminus-font-4.49.1/ter-v28n.psf terminus-font-4.49.1/OFL.TXT rootfs/usr/share/consolefonts/
 # audio (ALSA config), fonts (fontconfig + DejaVu Sans Mono), mpv defaults
 mkdir -p rootfs/usr/share/alsa rootfs/usr/share/fonts rootfs/etc/mpv rootfs/var/cache/fontconfig
 cp -r stage-alsa/usr/share/alsa/. rootfs/usr/share/alsa/

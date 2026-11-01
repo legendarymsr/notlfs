@@ -8,6 +8,7 @@ mkdir -p /var/log /tmp
 hostname -F /etc/hostname
 ip link set lo up
 loadkmap < /etc/us-altshift.bmap 2>/dev/null  # US keymap + Alt+Shift keys (kernel default leaves them dead) for the tmux binds
+for t in /dev/tty1 /dev/tty2; do busybox setfont -C $t /usr/share/consolefonts/ter-v28n.psf 2>/dev/null; done  # bigger, readable console font
 echo "Welcome to notlfs (s6)"
 (amixer -q sset Master 80% unmute; amixer -q sset PCM 80% unmute) >/dev/null 2>&1 &
 exit 0
