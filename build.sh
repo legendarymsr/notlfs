@@ -69,7 +69,10 @@ CROSS=$PWD/ccwrap/x86_64-linux-musl-
 get https://busybox.net/downloads/busybox-$BUSYBOX.tar.bz2 busybox-$BUSYBOX
 cd busybox-$BUSYBOX
 make defconfig
+# static against musl; drop tc; drop applets replaced by dedicated tools (vi -> vis, top -> htop)
 sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/; s/CONFIG_TC=y/# CONFIG_TC is not set/' .config
+sed -i 's/^CONFIG_VI=y/# CONFIG_VI is not set/; s/^CONFIG_TOP=y/# CONFIG_TOP is not set/; s/^CONFIG_FEATURE_TOPMEM=y/# CONFIG_FEATURE_TOPMEM is not set/' .config
+yes "" | make oldconfig >/dev/null
 make -j$JOBS CROSS_COMPILE=$CROSS
 cd ..
 
