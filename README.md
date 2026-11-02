@@ -54,7 +54,7 @@ Extras:
   `qemu-system-x86_64 -m 1G -cdrom out/notlfs.iso`
 - **Disk install:** boot the ISO, then `notlfs-install /dev/sda` (asks you to type `yes`; `-y` skips that). It wipes the disk, makes one
   MBR partition with ext4, copies the running system, puts the kernel in `/boot`, writes `/etc/fstab` (by PARTUUID) and installs
-  extlinux + the syslinux MBR. BIOS boot only. No GRUB. Tools in the image: static `mke2fs` (e2fsprogs 1.47.1) and `extlinux`
+  extlinux + the syslinux MBR. BIOS boot only. No GRUB. Tools in the image: static `mke2fs` and `e2fsck` (e2fsprogs 1.47.1) and `extlinux`
   (syslinux 6.03, rebuilt static against musl), BusyBox `fdisk`.
   Test in QEMU: `qemu-img create -f raw disk.img 2G`, boot with `-cdrom out/notlfs.iso -drive file=disk.img,format=raw -boot d`,
   install, then boot with just `-drive file=disk.img,format=raw`.

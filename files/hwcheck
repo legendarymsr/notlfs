@@ -1,0 +1,65 @@
+#!/bin/sh
+# hwcheck: quick hardware overview from /proc, /sys and BusyBox.
+if [ -z "$NO_COLOR" ] && [ -t 1 ]; then
+    B=$(printf '\033[1;38;2;122;162;247m'); D=$(printf '\033[38;2;86;95;137m'); R=$(printf '\033[0m')
+else B= D= R=; fi
+h() { printf '\n%s== %s ==%s\n' "$B" "$1" "$R"; }
+kv() { printf '  %s%-10s%s %s\n' "$D" "$1" "$R" "$2"; }
+human() { awk -v k="$1" 'BEGIN{s="KMGTP";i=1;while(k>=1024&&i<5){k/=1024;i++}printf "%.1f%s",k,substr(s,i,1)}'; }
+
+h System
+kv kernel "$(uname -srm)"
+kv host "$(uname -n)"
+kv uptime "$(awk '{s=int($1);printf "%dd %dh %dm",s/86400,s%86400/3600,s%3600/60}' /proc/uptime)"
+
+h CPU
+kv model "$(awk -F': ' '/^model name/{print $2;exit}' /proc/cpuinfo)"
+kv cores "$(grep -c '^processor' /proc/cpuinfo)"
+kv load "$(cut -d' ' -f1-3 /proc/loadavg)"
+
+h Memory
+t=$(awk '/^MemTotal/{print $2}' /proc/meminfo); a=$(awk '/^MemAvailable/{print $2}' /proc/meminfo)
+kv total "$(human "$t")"; kv available "$(human "${a:-0}")"
+
+h Disks
+for d in /sys/block/*; do
+    n=${d##*/}; case $n in loop*|ram*|zram*) continue;; esac
+    s=$(cat "$d/size" 2>/dev/null) || continue
+    [ "$s" -gt 0 ] || continue
+    m=$(cat "$d/device/model" 2>/dev/null | sed 's/ *$//')
+    r=$(cat "$d/queue/rotational" 2>/dev/null); [ "$r" = 0 ] && ty=ssd || ty=hdd
+    kv "$n" "$(human $((s / 2)))  $ty  $m"
+done
+
+h Filesystems
+df -h 2>/dev/null | awk 'NR==1 || $1 ~ /^\/dev\//' | sed 's/^/  /'
+
+h Network
+for i in /sys/class/net/*; do
+    n=${i##*/}; [ "$n" = lo ] && continue
+    st=$(cat "$i/operstate" 2>/dev/null); mac=$(cat "$i/address" 2>/dev/null)
+    ip4=$(ip -4 -o addr show dev "$n" 2>/dev/null | awk '{printf "%s ",$4}')
+    kv "$n" "$st  $mac  ${ip4:-no ip}"
+done
+
+for b in /sys/class/power_supply/BAT*; do
+    [ -r "$b/capacity" ] || continue
+    h Battery; kv "${b##*/}" "$(cat "$b/capacity")%  $(cat "$b/status" 2>/dev/null)"
+done
+
+tz=
+for z in /sys/class/thermal/thermal_zone*; do
+    [ -r "$z/temp" ] || continue
+    [ -n "$tz" ] || { h Temperatures; tz=1; }
+    kv "$(cat "$z/type")" "$(awk '{printf "%.0f°C",$1/1000}' "$z/temp")"
+done
+for t in /sys/class/hwmon/hwmon*/temp*_input; do
+    [ -r "$t" ] || continue
+    [ -n "$tz" ] || { h Temperatures; tz=1; }
+    hw=${t%/*}; l=$(cat "${t%_input}_label" 2>/dev/null)
+    kv "$(cat "$hw/name")" "${l:+$l: }$(awk '{printf "%.0f°C",$1/1000}' "$t" 2>/dev/null)"
+done
+
+if command -v lspci >/dev/null 2>&1; then h PCI; lspci 2>/dev/null | sed 's/^/  /'; fi
+if command -v lsusb >/dev/null 2>&1; then h USB; lsusb 2>/dev/null | sed 's/^/  /'; fi
+echo

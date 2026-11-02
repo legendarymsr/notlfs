@@ -244,7 +244,7 @@ get https://skarnet.org/software/skalibs/skalibs-2.14.4.0.tar.gz skalibs-2.14.4.
 done
 unset STRIP
 get https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v1.47.1/e2fsprogs-1.47.1.tar.gz e2fsprogs-1.47.1
-[ -f e2fsprogs-1.47.1/misc/mke2fs ] || (cd e2fsprogs-1.47.1 && LDFLAGS=-static ./configure --disable-nls --disable-elf-shlibs --disable-fuse2fs \
+[ -f e2fsprogs-1.47.1/misc/mke2fs ] && [ -f e2fsprogs-1.47.1/e2fsck/e2fsck ] || (cd e2fsprogs-1.47.1 && LDFLAGS=-static ./configure --disable-nls --disable-elf-shlibs --disable-fuse2fs \
   --disable-defrag --disable-uuidd --disable-debugfs --disable-imager --disable-resizer --without-libarchive && make -j$JOBS LDFLAGS=-static)
 # syslinux 6.03: prebuilt BIOS loader files from the release tarball, extlinux installer rebuilt static against musl
 get https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz syslinux-6.03
@@ -399,6 +399,7 @@ cp "$TOP/files/tmux.conf" "$TOP/files/profile" rootfs/etc/
 cp "$TOP/files/w3m-config" rootfs/etc/w3m/config
 cp "$TOP/files/theme-switch" rootfs/usr/bin/theme && chmod +x rootfs/usr/bin/theme
 cp "$TOP/files/tui" rootfs/bin/tui && cp "$TOP/files/rootsh" rootfs/bin/rootsh
+cp "$TOP/files/notlfs-chroot" "$TOP/files/hwcheck" rootfs/bin/ && chmod +x rootfs/bin/notlfs-chroot rootfs/bin/hwcheck
 cp "$TOP/files/tmux-ws" "$TOP/files/tmux-bat" "$TOP/files/launch" rootfs/usr/bin/ && chmod +x rootfs/usr/bin/tmux-ws rootfs/usr/bin/tmux-bat rootfs/usr/bin/launch && cp "$TOP/files/motd" rootfs/etc/motd && cp "$TOP/files/us-altshift.bmap" rootfs/etc/
 # console font: Terminus 14x28 (OFL), ~91x28 on a 1280x800 console; rc.init loads it on tty1/tty2
 get https://downloads.sourceforge.net/project/terminus-font/terminus-font-4.49/terminus-font-4.49.1.tar.gz terminus-font-4.49.1
@@ -449,9 +450,11 @@ cp -a s6-current rootfs/etc/s6-linux-init/current
 for b in init halt poweroff reboot shutdown telinit; do ln -sf /etc/s6-linux-init/current/bin/$b rootfs/sbin/$b; done
 # initramfs /init: the kernel only auto-mounts devtmpfs for a disk root, so do it here, then hand off to s6
 cp "$TOP/files/init" rootfs/init && chmod +x rootfs/init
-# disk install: mke2fs, extlinux, syslinux BIOS modules, the installer
+# disk install + rescue: mke2fs, e2fsck, extlinux, syslinux BIOS modules, the installer
 rm -f rootfs/sbin/mke2fs rootfs/sbin/mkfs.ext2 && cp e2fsprogs-1.47.1/misc/mke2fs rootfs/sbin/ && ln -sf mke2fs rootfs/sbin/mkfs.ext4
-cp syslinux-6.03/extlinux-static rootfs/sbin/extlinux && ${CROSS}strip -s rootfs/sbin/mke2fs rootfs/sbin/extlinux
+rm -f rootfs/sbin/e2fsck rootfs/sbin/fsck.ext2 rootfs/sbin/fsck.ext3 rootfs/sbin/fsck.ext4 && cp e2fsprogs-1.47.1/e2fsck/e2fsck rootfs/sbin/ \
+  && for f in fsck.ext2 fsck.ext3 fsck.ext4; do ln -sf e2fsck rootfs/sbin/$f; done
+cp syslinux-6.03/extlinux-static rootfs/sbin/extlinux && ${CROSS}strip -s rootfs/sbin/mke2fs rootfs/sbin/e2fsck rootfs/sbin/extlinux
 mkdir -p rootfs/usr/share/syslinux rootfs/boot
 cp syslinux-6.03/bios/mbr/mbr.bin syslinux-6.03/bios/com32/menu/menu.c32 syslinux-6.03/bios/com32/libutil/libutil.c32 rootfs/usr/share/syslinux/
 cp "$TOP/files/notlfs-install" rootfs/sbin/ && chmod +x rootfs/sbin/notlfs-install

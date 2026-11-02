@@ -1,0 +1,51 @@
+#!/bin/sh
+# notlfs-chroot: chroot into an installed system for rescue work.
+# usage: notlfs-chroot /dev/sdXN [mountpoint] [command...]
+#        notlfs-chroot /already/mounted/dir [command...]
+set -e
+die() { echo "notlfs-chroot: $*" >&2; exit 1; }
+[ $# -ge 1 ] || die "usage: notlfs-chroot /dev/sdXN [mountpoint] [command...] | DIR [command...]"
+[ "$(id -u)" = 0 ] || die "must be root"
+
+src=$1; shift
+MOUNTED_ROOT=
+if [ -b "$src" ]; then
+    root=/mnt/root
+    case "$1" in /*) [ -b "$1" ] || { root=$1; shift; } ;; esac
+    mkdir -p "$root"
+    mount "$src" "$root" || die "cannot mount $src"
+    MOUNTED_ROOT=1
+elif [ -d "$src" ]; then
+    root=$src
+else
+    die "$src is not a block device or directory"
+fi
+root=${root%/}
+[ -e "$root/bin/sh" ] || [ -L "$root/bin/sh" ] || echo "notlfs-chroot: warning: $root/bin/sh not found" >&2
+
+MOUNTS=
+cleanup() {
+    trap - EXIT INT TERM HUP
+    for m in $MOUNTS; do umount "$m" 2>/dev/null || umount -l "$m" 2>/dev/null; done
+    [ -n "$MOUNTED_ROOT" ] && { umount "$root" 2>/dev/null || umount -l "$root"; }
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM HUP
+
+for d in dev dev/pts proc sys run; do
+    [ -d "/$d" ] || continue
+    mkdir -p "$root/$d"
+    mount --bind "/$d" "$root/$d" || die "cannot bind /$d"
+    MOUNTS="$root/$d $MOUNTS"   # reverse order for unmount
+done
+if [ -f /etc/resolv.conf ]; then
+    mkdir -p "$root/etc"
+    rm -f "$root/etc/resolv.conf" 2>/dev/null || true
+    cp /etc/resolv.conf "$root/etc/resolv.conf" || true
+fi
+
+echo "notlfs-chroot: entering $root (exit to leave and unmount)"
+set +e
+if [ $# -gt 0 ]; then chroot "$root" "$@"; else chroot "$root" /bin/sh -l; fi
+rc=$?
+exit $rc

@@ -14,7 +14,8 @@ authoritative list.
 | Core userland | BusyBox 1.36.1 | static; provides sh and hundreds of applets |
 | init / supervision | skalibs 2.14.4, execline 2.9.7, s6 2.13.2, s6-linux-init 1.1.3 | no s6-rc |
 | Bootloader | syslinux 6.03 | isolinux (ISO) + extlinux (disk), static against musl |
-| Filesystem tools | e2fsprogs 1.47.1 | static `mke2fs` for installs |
+| Filesystem tools | e2fsprogs 1.47.1 | static `mke2fs` for installs, `e2fsck` (+ `fsck.ext2/3/4`) for repairs |
+| Rescue helpers | notlfs | `notlfs-chroot` (mount + bind /dev /proc /sys /run, chroot in, clean up on exit), `hwcheck` (quick hardware overview) |
 
 ## TLS / crypto / network
 
