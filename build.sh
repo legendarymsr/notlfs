@@ -72,6 +72,8 @@ make defconfig
 # static against musl; drop tc; drop applets replaced by dedicated tools (vi -> vis, top -> htop)
 sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/; s/CONFIG_TC=y/# CONFIG_TC is not set/' .config
 sed -i 's/^CONFIG_VI=y/# CONFIG_VI is not set/; s/^CONFIG_TOP=y/# CONFIG_TOP is not set/; s/^CONFIG_FEATURE_TOPMEM=y/# CONFIG_FEATURE_TOPMEM is not set/' .config
+# no network servers notlfs doesn't run (dropbear is the only one); udhcpc stays
+for o in HTTPD FTPD TELNETD TFTPD INETD UDHCPD; do sed -i "s/^CONFIG_$o=y/# CONFIG_$o is not set/" .config; done
 yes "" | make oldconfig >/dev/null
 make -j$JOBS CROSS_COMPILE=$CROSS
 cd ..
