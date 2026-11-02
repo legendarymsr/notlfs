@@ -353,6 +353,21 @@ getJ https://netfilter.org/projects/libnftnl/files/libnftnl-1.2.8.tar.xz libnftn
 getJ https://netfilter.org/projects/nftables/files/nftables-1.1.1.tar.xz nftables-1.1.1
 [ -f nftables-1.1.1/src/nft ] || (cd nftables-1.1.1 && ./configure --prefix=/usr --sysconfdir=/etc --disable-shared --enable-static --with-mini-gmp \
   --without-cli --without-json --without-xtables --disable-man-doc --disable-python && make -j$JOBS LDFLAGS="-all-static -L$SYS/lib")
+# 2m. disk encryption: cryptsetup (LUKS2), kernel crypto backend (AF_ALG, no OpenSSL), only libdevmapper from LVM2
+get https://ftp.osuosl.org/pub/rpm/popt/releases/popt-1.x/popt-1.19.tar.gz popt-1.19
+[ -f $SYS/lib/libpopt.a ] || (cd popt-1.19 && cfg --disable-nls)
+[ -f $SYS/lib/libuuid.a ] || { cp e2fsprogs-1.47.1/lib/libuuid.a $SYS/lib/ && mkdir -p $SYS/include/uuid && cp e2fsprogs-1.47.1/lib/uuid/uuid.h $SYS/include/uuid/; }
+printf 'prefix=%s\nName: uuid\nDescription: uuid\nVersion: 1.47.1\nCflags: -I%s/include\nLibs: -L%s/lib -luuid\n' $SYS $SYS $SYS > $SYS/lib/pkgconfig/uuid.pc
+get https://sourceware.org/pub/lvm2/LVM2.2.03.28.tgz LVM2.2.03.28
+[ -f $SYS/lib/libdevmapper.a ] || (cd LVM2.2.03.28 && ./configure --prefix=$SYS --enable-static_link --disable-selinux --disable-udev_sync \
+  --disable-udev-rule-exec-detection --disable-blkid_wiping --disable-readline --disable-systemd-journal --disable-app-machineid --disable-dmeventd \
+  --with-thin=none --with-cache=none --with-vdo=none --with-writecache=none --with-integrity=none && make -j$JOBS device-mapper && make install_device-mapper)
+rm -f $SYS/lib/libdevmapper.so*
+printf 'prefix=%s\nName: devmapper\nDescription: devmapper\nVersion: 1.02.202\nCflags: -I%s/include\nLibs: -L%s/lib -ldevmapper -lpthread -lm\n' $SYS $SYS $SYS > $SYS/lib/pkgconfig/devmapper.pc
+getJ https://www.kernel.org/pub/linux/utils/cryptsetup/v2.7/cryptsetup-2.7.5.tar.xz cryptsetup-2.7.5
+[ -f cryptsetup-2.7.5/cryptsetup.static ] || (cd cryptsetup-2.7.5 && ./configure --prefix=/usr --disable-shared --enable-static --enable-static-cryptsetup \
+  --with-crypto_backend=kernel --disable-ssh-token --disable-external-tokens --disable-asciidoc --disable-nls --disable-udev --disable-selinux \
+  --disable-blkid --disable-keyring --disable-veritysetup --disable-integritysetup --disable-hw-opal --disable-fips && make -j$JOBS cryptsetup.static)
 unset CC AR RANLIB CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
 
 # 3. GNU Linux-libre kernel (GPL-2.0, no blobs)
@@ -378,10 +393,20 @@ make defconfig
   --disable LEGACY_TIOCSTI --disable LDISC_AUTOLOAD --disable BINFMT_MISC \
   --enable NF_CONNTRACK --enable NF_TABLES --enable NF_TABLES_INET --enable NFT_CT --enable NFT_LIMIT --enable NFT_LOG --enable NFT_REJECT \
   --disable IP_NF_IPTABLES --disable IP6_NF_IPTABLES --disable NETFILTER_XTABLES \
+  --enable MD --enable BLK_DEV_DM --enable DM_CRYPT --enable CRYPTO_XTS --enable CRYPTO_AES_NI_INTEL \
+  --disable INTEL_MEI --disable INTEL_MEI_ME --disable INTEL_MEI_TXE --disable INTEL_MEI_GSC --disable INTEL_MEI_HDCP --disable INTEL_MEI_PXP \
+  --disable INTEL_MEI_GSC_PROXY --disable INTEL_MEI_WDT --disable INTEL_TXT --disable CRYPTO_DEV_CCP --disable CRYPTO_DEV_CCP_DD \
+  --disable CRYPTO_DEV_SP_CCP --disable CRYPTO_DEV_SP_PSP --disable KVM_AMD_SEV --disable AMD_MEM_ENCRYPT --disable AMDTEE --disable TEE --disable TCG_CRB \
   --disable MODULES  # no loadable modules: lockdown would force module signing, and a per-build random key breaks reproducibility
 # NOTLFS_HWSIM=1: test build with simulated Wi-Fi radios built in (never for real hardware, it adds fake wlan devices)
 [ "${NOTLFS_HWSIM:-}" = 1 ] && ./scripts/config --enable MAC80211_HWSIM
 make olddefconfig
+# no Intel ME / AMD PSP interface may slip back in through a dependency (see docs/hardening.md)
+for o in INTEL_MEI INTEL_MEI_ME INTEL_MEI_TXE INTEL_MEI_GSC INTEL_MEI_HDCP INTEL_MEI_PXP INTEL_MEI_GSC_PROXY INTEL_MEI_WDT INTEL_TXT \
+  CRYPTO_DEV_CCP CRYPTO_DEV_CCP_DD CRYPTO_DEV_SP_PSP KVM_AMD_SEV AMDTEE TEE TCG_CRB; do
+  grep -q "^CONFIG_$o=" .config && { echo "build.sh: CONFIG_$o is still enabled" >&2; exit 1; }; done
+for o in DM_CRYPT CRYPTO_XTS CRYPTO_USER_API_SKCIPHER CRYPTO_USER_API_HASH NF_TABLES_INET; do
+  grep -q "^CONFIG_$o=y" .config || { echo "build.sh: CONFIG_$o missing" >&2; exit 1; }; done
 make -j$JOBS bzImage
 cp arch/x86/boot/bzImage "$TOP/out/"
 cd ..
@@ -389,7 +414,7 @@ cd ..
 # 4. rootfs
 rm -rf rootfs && mkdir -p rootfs/bin rootfs/sbin rootfs/etc rootfs/dev rootfs/proc rootfs/sys rootfs/tmp
 cp busybox-$BUSYBOX/busybox rootfs/bin/
-mkdir -p rootfs/usr/bin rootfs/root rootfs/etc/ssl rootfs/etc/w3m rootfs/usr/share/udhcpc rootfs/usr/share/terminfo
+mkdir -p rootfs/usr/bin rootfs/usr/sbin rootfs/root rootfs/etc/ssl rootfs/etc/w3m rootfs/usr/share/udhcpc rootfs/usr/share/terminfo
 cp lua-5.4.7/src/lua fastfetch-build/fastfetch tmux-3.5a/tmux w3m-0.5.3-git20230121/w3m vis-0.9/vis rootfs/usr/bin/
 mkdir -p rootfs/usr/share/vis && cp -r vis-0.9/lua/. rootfs/usr/share/vis/
 tic -x -o rootfs/usr/share/terminfo -e linux,vt102,xterm,xterm-256color,screen,tmux,tmux-256color ncurses-6.5/misc/terminfo.src
@@ -458,6 +483,12 @@ cp syslinux-6.03/extlinux-static rootfs/sbin/extlinux && ${CROSS}strip -s rootfs
 mkdir -p rootfs/usr/share/syslinux rootfs/boot
 cp syslinux-6.03/bios/mbr/mbr.bin syslinux-6.03/bios/com32/menu/menu.c32 syslinux-6.03/bios/com32/libutil/libutil.c32 rootfs/usr/share/syslinux/
 cp "$TOP/files/notlfs-install" rootfs/sbin/ && chmod +x rootfs/sbin/notlfs-install
+cp cryptsetup-2.7.5/cryptsetup.static rootfs/sbin/cryptsetup && ${CROSS}strip -s rootfs/sbin/cryptsetup
+# unlock initrd for encrypted installs (notlfs-install -e): just busybox, cryptsetup and a tiny /init
+rm -rf unlock && mkdir -p unlock/bin unlock/sbin unlock/dev unlock/proc unlock/sys unlock/run unlock/newroot
+cp busybox-$BUSYBOX/busybox unlock/bin/ && cp rootfs/sbin/cryptsetup unlock/sbin/ && cp "$TOP/files/unlock-init" unlock/init && chmod +x unlock/init
+mkdir -p rootfs/usr/share/notlfs && (cd unlock && find . -exec touch -h -d @$SOURCE_DATE_EPOCH {} + && find . | LC_ALL=C sort \
+  | cpio -o -H newc -R 0:0 --reproducible --quiet | xz -9e -T1 --check=crc32) > rootfs/usr/share/notlfs/unlock.cpio.xz
 
 mkdir -p rootfs/etc/fastfetch rootfs/etc/xdg/fastfetch
 cp "$TOP/files/logo.txt" rootfs/etc/fastfetch/
@@ -517,12 +548,12 @@ TIMEOUT 30
 LABEL notlfs
   LINUX /boot/bzImage
   INITRD /boot/initramfs.cpio.xz
-  APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=26,247,158,224,122,187,125,192,86,247,158,224,122,187,125,192 vt.default_grn=27,118,206,175,162,154,207,202,95,118,206,175,162,154,207,202 vt.default_blu=38,142,106,104,247,247,255,245,137,142,106,104,247,247,255,245
+  APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 lockdown=confidentiality slab_nomerge init_on_alloc=1 init_on_free=1 page_alloc.shuffle=1 pti=on randomize_kstack_offset=on vsyscall=none debugfs=off vt.default_red=26,247,158,224,122,187,125,192,86,247,158,224,122,187,125,192 vt.default_grn=27,118,206,175,162,154,207,202,95,118,206,175,162,154,207,202 vt.default_blu=38,142,106,104,247,247,255,245,137,142,106,104,247,247,255,245
 # light mode: type 'day' at the boot: prompt
 LABEL day
   LINUX /boot/bzImage
   INITRD /boot/initramfs.cpio.xz
-  APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 vt.default_red=225,245,88,140,46,152,0,55,97,255,92,162,53,164,0,55 vt.default_grn=226,42,117,108,125,84,113,96,114,71,133,118,138,99,126,96 vt.default_blu=231,101,57,62,233,241,151,191,176,116,36,41,255,255,168,191 notlfs.theme=day
+  APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 lockdown=confidentiality slab_nomerge init_on_alloc=1 init_on_free=1 page_alloc.shuffle=1 pti=on randomize_kstack_offset=on vsyscall=none debugfs=off vt.default_red=225,245,88,140,46,152,0,55,97,255,92,162,53,164,0,55 vt.default_grn=226,42,117,108,125,84,113,96,114,71,133,118,138,99,126,96 vt.default_blu=231,101,57,62,233,241,151,191,176,116,36,41,255,255,168,191 notlfs.theme=day
 CFG
 # deterministic ISO: all dates from SOURCE_DATE_EPOCH (xorriso reads it too), fixed volume UUID, no padding
 find iso -exec touch -h -d @$SOURCE_DATE_EPOCH {} +

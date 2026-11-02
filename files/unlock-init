@@ -1,0 +1,26 @@
+#!/bin/busybox sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# notlfs unlock initrd: open the LUKS2 root named by notlfs.luks=UUID, then switch to it.
+/bin/busybox --install -s /bin
+export PATH=/sbin:/bin
+mount -t devtmpfs -o nosuid,noexec dev /dev
+exec </dev/console >/dev/console 2>&1
+mount -t proc -o nosuid,nodev,noexec proc /proc
+mount -t sysfs -o nosuid,nodev,noexec sys /sys
+mkdir -p /run/cryptsetup  # cryptsetup keeps its device locks here
+U=; for a in $(cat /proc/cmdline); do case $a in notlfs.luks=*) U=${a#notlfs.luks=};; esac; done
+rescue() { echo "unlock: $*; dropping to a shell (exit to retry)"; sh; exec /init; }
+[ -n "$U" ] || rescue "no notlfs.luks= on the kernel command line"
+D=; i=0
+while [ -z "$D" ] && [ $i -lt 50 ]; do  # wait up to 10s for the disk to show up
+  for b in /sys/class/block/*; do
+    [ "$(cryptsetup luksUUID "/dev/${b##*/}" 2>/dev/null)" = "$U" ] && { D=/dev/${b##*/}; break; }
+  done
+  [ -n "$D" ] || { sleep 0.2; i=$((i+1)); }
+done
+[ -n "$D" ] || rescue "LUKS device $U not found"
+cryptsetup open --type luks2 "$D" notlfs-root || rescue "could not unlock $D"
+mount -o rw,noatime /dev/mapper/notlfs-root /newroot || rescue "could not mount the root"
+mount --move /dev /newroot/dev
+umount /proc /sys
+exec switch_root /newroot /init

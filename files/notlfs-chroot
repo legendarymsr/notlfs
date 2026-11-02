@@ -1,6 +1,7 @@
 #!/bin/sh
 # notlfs-chroot: chroot into an installed system for rescue work.
 # usage: notlfs-chroot /dev/sdXN [mountpoint-dir] [command...]  (default mountpoint /mnt/root)
+#        a LUKS partition is unlocked to /dev/mapper/notlfs-root first and closed on exit
 #        notlfs-chroot /already/mounted/dir [command...]
 set -e
 die() { echo "notlfs-chroot: $*" >&2; exit 1; }
@@ -9,12 +10,19 @@ die() { echo "notlfs-chroot: $*" >&2; exit 1; }
 
 src=$1; shift
 MOUNTED_ROOT=
+OPENED_LUKS=
+if [ -b "$src" ] && command -v cryptsetup >/dev/null && cryptsetup isLuks "$src" 2>/dev/null; then
+    [ -e /dev/mapper/notlfs-root ] && die "/dev/mapper/notlfs-root is already open"
+    cryptsetup open "$src" notlfs-root || die "cannot unlock $src"
+    OPENED_LUKS=1
+    src=/dev/mapper/notlfs-root
+fi
 if [ -b "$src" ]; then
     root=/mnt/root
     # 2nd arg is a mountpoint only if it is a directory; otherwise it is the command
     [ -n "$1" ] && [ -d "$1" ] && { root=$1; shift; }
     mkdir -p "$root"
-    mount "$src" "$root" || die "cannot mount $src"
+    mount "$src" "$root" || { [ -n "$OPENED_LUKS" ] && cryptsetup close notlfs-root; die "cannot mount $src"; }
     MOUNTED_ROOT=1
 elif [ -d "$src" ]; then
     root=$src
@@ -34,6 +42,7 @@ cleanup() {
     fi
     for m in $MOUNTS; do umount "$m" 2>/dev/null || umount -l "$m" 2>/dev/null; done
     [ -n "$MOUNTED_ROOT" ] && { umount "$root" 2>/dev/null || umount -l "$root"; }
+    [ -n "$OPENED_LUKS" ] && cryptsetup close notlfs-root
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM HUP

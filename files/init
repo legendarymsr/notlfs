@@ -3,7 +3,7 @@
 # notlfs early boot, before s6 starts any service. Runs as rdinit=/init (live ISO) and init=/init (disk).
 # Hardened mounts, sysctl hardening, default-deny firewall, then hand off to s6.
 PATH=/usr/sbin:/usr/bin:/sbin:/bin
-mount -t devtmpfs -o nosuid,noexec dev /dev 2>/dev/null || mount -o remount,nosuid,noexec /dev
+mount -t devtmpfs -o nosuid,noexec dev /dev 2>/dev/null || mount -o remount,nosuid,noexec /dev 2>/dev/null
 mkdir -p /dev/pts /dev/shm /proc /sys /tmp
 mount -t proc -o nosuid,nodev,noexec proc /proc
 mount -t sysfs -o nosuid,nodev,noexec sys /sys
