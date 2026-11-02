@@ -23,11 +23,15 @@ authoritative list.
 | Tool | Version | Notes |
 | --- | --- | --- |
 | LibreSSL | 3.9.2 | TLS for curl, git, w3m, the `yt`/`tget` HTTPS helper |
-| curl | 8.11.1 | |
+| curl | 8.11.1 | library + static CLI |
 | dropbear | 2026.94 | SSH server, key-only logins |
 | iwd | 3.6 | Wi-Fi (s6 service + an fzf network picker) |
 | nftables | 1.1.1 | firewall (libmnl 1.0.5, libnftnl 1.2.8) |
 | tcpdump | 4.99.5 | with libpcap 1.10.5 |
+| Tor | 0.4.9.9 | client only (relay/dirauth modules off), s6 service, runs as `tor`; SOCKS 9050, TransPort 9040, DNSPort 9053 |
+| `torsocks` | notlfs | wrapper: runs a command with `ALL_PROXY=socks5h://127.0.0.1:9050` (curl, git). Upstream torsocks is LD_PRELOAD and can't work on an all-static system |
+| `tor-route` | notlfs | `on`/`off`/`status`: nftables redirect of all outbound TCP + DNS into Tor, other UDP and IPv6 dropped |
+| unbound | 1.26.2 | local resolver on 127.0.0.1:53, forwards everything over DNS-over-TLS (Quad9, Mullvad); s6 service |
 
 ## Terminal environment
 

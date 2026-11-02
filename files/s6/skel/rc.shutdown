@@ -1,3 +1,9 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
+# privacy: nothing but config survives a shutdown. Stop the loggers first so no log is still open,
+# then wipe logs, temp files and shell/pager/browser history (rc.shutdown.final runs with / already read-only).
+for d in /run/service/*/log; do [ -d "$d" ] && s6-svc -d "$d"; done
+s6-svwait -D -t 5000 /run/service/*/log 2>/dev/null
+rm -rf /var/log/* /tmp/* /tmp/.[!.]* /var/tmp/* /root/.ash_history /root/.lesshst /root/.w3m/history \
+  /root/.local/share/catgirl/* /root/.cache 2>/dev/null
 sync

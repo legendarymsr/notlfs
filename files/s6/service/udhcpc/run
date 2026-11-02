@@ -1,2 +1,3 @@
 #!/bin/sh
-exec udhcpc -f -i eth0 -S 2>&1
+# privacy: no hostname (no -x hostname), no client id (-C), no "udhcp 1.36.1" vendor class (-V "")
+exec udhcpc -f -i eth0 -S -C -V "" 2>&1

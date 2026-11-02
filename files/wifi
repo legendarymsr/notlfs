@@ -1,6 +1,8 @@
 #!/bin/sh
 # wifi: pick a network with fzf and connect through iwd (Alt+w)
 . /etc/profile 2>/dev/null
+# new random MAC (iwd AddressRandomization=once) for this connection: restart iwd first
+s6-svc -r /run/service/iwd 2>/dev/null && sleep 2
 iw() { timeout 15 iwctl "$@" | sed 's/\x1b\[[0-9;]*m//g'; }
 dev=$(iw device list | awk '$NF=="station"{print $1; exit}')
 if [ -z "$dev" ]; then

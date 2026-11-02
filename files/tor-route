@@ -1,0 +1,32 @@
+#!/bin/sh
+# tor-route on|off|status: send ALL outbound TCP and DNS through Tor (transparent proxy),
+# drop other outbound UDP/IPv6 so nothing leaks around it. tor's own traffic is exempt.
+case $1 in
+on)
+  nft delete table inet torroute 2>/dev/null
+  nft -f - <<'N'
+table inet torroute {
+  chain nat_out {
+    type nat hook output priority -100; policy accept;
+    meta skuid "tor" return
+    oif lo return
+    meta l4proto { tcp, udp } th dport 53 redirect to :9053
+    ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16 } return
+    meta l4proto tcp redirect to :9040
+  }
+  chain filter_out {
+    type filter hook output priority 10; policy accept;
+    meta skuid "tor" accept
+    oif lo accept
+    ct state established,related accept
+    meta nfproto ipv6 drop
+    meta l4proto udp udp dport 67 accept
+    meta l4proto { udp, icmp } drop
+  }
+}
+N
+  echo "tor-route: on (all TCP + DNS via Tor)";;
+off) nft delete table inet torroute 2>/dev/null; echo "tor-route: off";;
+status) nft list table inet torroute >/dev/null 2>&1 && echo on || echo off;;
+*) echo "usage: tor-route on|off|status" >&2; exit 2;;
+esac

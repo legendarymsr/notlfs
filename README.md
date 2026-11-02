@@ -33,6 +33,19 @@ Extras:
 - `catgirl libera`, `aerc` (starts the account wizard).
 - `mpv --vo=drm file` plays video on the virtio-gpu display (QEMU window/screendump), e.g. `mpv --vo=drm av://lavfi:testsrc`. `--vo=tct` plays it in the terminal. No audio output.
 
+## Privacy
+
+- **Tor 0.4.9.9** runs as an s6 service (client only, as user `tor`). `torsocks curl ...` sends one
+  command through it (proxy variables; real torsocks needs a dynamic loader notlfs doesn't have),
+  `tor-route on` sends *all* TCP and DNS through it (nftables redirect, other UDP/IPv6 dropped), `tor-route off` undoes it.
+  Disable the service with `touch /etc/s6-linux-init/current/run-image/service/tor/down`.
+- **Encrypted DNS:** unbound 1.26.2 on 127.0.0.1 is the only nameserver and forwards over DNS-over-TLS
+  (Quad9, Mullvad). DHCP never rewrites `/etc/resolv.conf`. Chosen over stubby (needs getdns + libyaml + cmake)
+  and dnscrypt-proxy (Go, ~10 MB): it builds from LibreSSL + expat already in the tree, ~2.8 MB static.
+- **Random Wi-Fi MAC:** iwd `AddressRandomization=once` (new MAC every iwd start); the `wifi` picker restarts iwd, so every connect gets a fresh one.
+- **No traces:** `HISTFILE=/dev/null`; on shutdown/reboot `rc.shutdown` stops the loggers and wipes `/var/log`, `/tmp`, shell/less/w3m history, catgirl logs.
+- **Generic identity:** hostname `localhost`; udhcpc sends no hostname, no client id and no vendor class.
+
 ## v0.11: fixes, a few small tools
 
 - **Added** (static musl): fzf 0.74.5 (Go), ripgrep (`rg`), jq 1.7.1, ncdu 1.20, calcurse 4.8.1, sc-im 0.8.4 (no Lua/xlsx),

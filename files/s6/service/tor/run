@@ -1,0 +1,4 @@
+#!/bin/sh
+# Tor client; drops to the tor user after binding
+mkdir -p /var/lib/tor && chown tor:tor /var/lib/tor && chmod 700 /var/lib/tor
+exec tor -f /etc/tor/torrc 2>&1

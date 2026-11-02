@@ -1,0 +1,9 @@
+#!/bin/sh
+# torsocks COMMAND...: run COMMAND with its traffic sent through Tor's SOCKS port.
+# notlfs is all static (no dynamic loader), so upstream torsocks' LD_PRELOAD can't work;
+# this sets the proxy variables libcurl honors instead (curl, git, tget-less tools).
+# For everything else, use `tor-route on` (transparent, system-wide).
+[ $# -gt 0 ] || { echo "usage: torsocks COMMAND [ARGS...]" >&2; exit 2; }
+p=socks5h://127.0.0.1:9050
+export ALL_PROXY=$p all_proxy=$p HTTPS_PROXY=$p https_proxy=$p HTTP_PROXY=$p http_proxy=$p
+exec "$@"

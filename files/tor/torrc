@@ -1,0 +1,11 @@
+# notlfs Tor: client only. SOCKS for `torsocks`, TransPort + DNSPort for `tor-route on`.
+User tor
+DataDirectory /var/lib/tor
+SocksPort 127.0.0.1:9050 IsolateDestAddr
+TransPort 127.0.0.1:9040
+DNSPort 127.0.0.1:9053
+AutomapHostsOnResolve 1
+VirtualAddrNetworkIPv4 10.192.0.0/10
+ClientOnly 1
+AvoidDiskWrites 1
+Log notice stdout

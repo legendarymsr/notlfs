@@ -1,0 +1,3 @@
+#!/bin/sh
+# local DNS-over-TLS resolver (/etc/resolv.conf points here)
+exec unbound -d -c /etc/unbound/unbound.conf 2>&1

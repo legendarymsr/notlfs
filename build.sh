@@ -150,6 +150,8 @@ get https://curl.se/download/curl-8.11.1.tar.gz curl-8.11.1
 [ -f $SYS/lib/libcurl.a ] || (cd curl-8.11.1 && cfg --with-openssl=$SYS --with-zlib=$SYS --without-libpsl --without-brotli --without-zstd \
   --without-nghttp2 --without-libidn2 --disable-ldap --disable-manual --with-ca-bundle=/etc/ssl/cert.pem)
 
+# curl CLI, relinked fully static (libtool's default is a dynamic one); torsocks/tor-route users want it
+[ -f curl-8.11.1/curl-static ] || (cd curl-8.11.1/src && rm -f curl && make curl LDFLAGS="-all-static -L$SYS/lib" && cp curl ../curl-static)
 get https://www.kernel.org/pub/software/scm/git/git-2.47.1.tar.gz git-2.47.1
 GITOPTS="prefix=/usr NO_GETTEXT=1 NO_TCLTK=1 NO_PERL=1 NO_PYTHON=1 NO_EXPAT=1 NO_REGEX=NeedsStartEnd NO_INSTALL_HARDLINKS=1 CURL_CONFIG=/bin/false"
 [ -d git-install ] || (cd git-2.47.1 && make -j$JOBS $GITOPTS CC="$CC" AR="$AR" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" \
@@ -354,6 +356,17 @@ getJ https://netfilter.org/projects/libnftnl/files/libnftnl-1.2.8.tar.xz libnftn
 getJ https://netfilter.org/projects/nftables/files/nftables-1.1.1.tar.xz nftables-1.1.1
 [ -f nftables-1.1.1/src/nft ] || (cd nftables-1.1.1 && ./configure --prefix=/usr --sysconfdir=/etc --disable-shared --enable-static --with-mini-gmp \
   --without-cli --without-json --without-xtables --disable-man-doc --disable-python && make -j$JOBS LDFLAGS="-all-static -L$SYS/lib")
+# 2n. privacy: Tor (client only, static against LibreSSL/libevent/zlib) and unbound (local DNS-over-TLS forwarder)
+get https://dist.torproject.org/tor-0.4.9.9.tar.gz tor-0.4.9.9
+[ -f tor-0.4.9.9/src/app/tor ] || (cd tor-0.4.9.9 && ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --disable-module-relay --disable-module-pow \
+  --disable-asciidoc --disable-manpage --disable-html-manual --disable-unittests --disable-lzma --disable-zstd --disable-systemd --disable-seccomp --disable-libscrypt \
+  --enable-static-tor --with-libevent-dir=$SYS --with-openssl-dir=$SYS --with-zlib-dir=$SYS --disable-gcc-hardening --disable-linker-hardening \
+  && make -j$JOBS src/app/tor)
+get https://nlnetlabs.nl/downloads/unbound/unbound-1.26.2.tar.gz unbound-1.26.2
+[ -f unbound-1.26.2/unbound ] || (cd unbound-1.26.2 && ./configure --prefix=/usr --sysconfdir=/etc --disable-shared --enable-static --with-ssl=$SYS --with-libexpat=$SYS \
+  --without-pythonmodule --without-pyunbound --disable-flto --with-pidfile= --with-username= --with-chroot-dir= --disable-dnscrypt --disable-dnstap --without-libevent \
+  && sed -i 's|^#define CONFCMDLINE .*|#define CONFCMDLINE "notlfs build"|' config.h && sed -i 's|^RUNTIME_PATH=.*|RUNTIME_PATH=|' Makefile \
+  && make -j$JOBS unbound LDFLAGS="-all-static -L$SYS/lib")
 # 2m. disk encryption: cryptsetup (LUKS2), kernel crypto backend (AF_ALG, no OpenSSL), only libdevmapper from LVM2
 get https://ftp.osuosl.org/pub/rpm/popt/releases/popt-1.x/popt-1.19.tar.gz popt-1.19
 [ -f $SYS/lib/libpopt.a ] || (cd popt-1.19 && cfg --disable-nls)
@@ -375,7 +388,7 @@ unset CC AR RANLIB CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
 get https://linux-libre.fsfla.org/pub/linux-libre/releases/$KERNEL-gnu/linux-libre-$KERNEL-gnu.tar.xz linux-$KERNEL
 cd linux-$KERNEL
 make defconfig
-./scripts/config --set-str LOCALVERSION "-catgirls" --set-str DEFAULT_HOSTNAME notlfs --set-str EXTRA_FIRMWARE "" --disable DRM_I915 --disable WERROR \
+./scripts/config --set-str LOCALVERSION "-catgirls" --set-str DEFAULT_HOSTNAME localhost --set-str EXTRA_FIRMWARE "" --disable DRM_I915 --disable WERROR \
   --enable SND_HDA_GENERIC --enable DRM_FBDEV_EMULATION --enable FB --enable FRAMEBUFFER_CONSOLE \
   --enable WLAN --enable CFG80211 --enable MAC80211 --enable RFKILL --enable ATH_COMMON --enable ATH9K --enable ATH9K_PCI --enable ATH5K \
   --enable KEYS --enable KEY_DH_OPERATIONS --enable CRYPTO_USER_API_HASH --enable CRYPTO_USER_API_SKCIPHER --enable ASYMMETRIC_KEY_TYPE \
@@ -392,7 +405,7 @@ make defconfig
   --disable IA32_EMULATION --disable X86_X32_ABI --disable MODIFY_LDT_SYSCALL --disable X86_IOPL_IOPERM --disable LEGACY_VSYSCALL_XONLY \
   --enable LEGACY_VSYSCALL_NONE --disable COMPAT_BRK --disable USERFAULTFD --enable BPF_UNPRIV_DEFAULT_OFF --disable HIBERNATION \
   --disable LEGACY_TIOCSTI --disable LDISC_AUTOLOAD --disable BINFMT_MISC \
-  --enable NF_CONNTRACK --enable NF_TABLES --enable NF_TABLES_INET --enable NFT_CT --enable NFT_LIMIT --enable NFT_LOG --enable NFT_REJECT \
+  --enable NF_CONNTRACK --enable NF_TABLES --enable NF_TABLES_INET --enable NFT_CT --enable NFT_NAT --enable NFT_REDIR --enable NFT_LIMIT --enable NFT_LOG --enable NFT_REJECT \
   --disable IP_NF_IPTABLES --disable IP6_NF_IPTABLES --disable NETFILTER_XTABLES \
   --enable MD --enable BLK_DEV_DM --enable DM_CRYPT --enable CRYPTO_XTS --enable CRYPTO_AES_NI_INTEL \
   --disable INTEL_MEI --disable INTEL_MEI_ME --disable INTEL_MEI_TXE --disable INTEL_MEI_GSC --disable INTEL_MEI_HDCP --disable INTEL_MEI_PXP \
@@ -420,7 +433,7 @@ cp lua-5.4.7/src/lua fastfetch-build/fastfetch tmux-3.5a/tmux w3m-0.5.3-git20230
 mkdir -p rootfs/usr/share/vis && cp -r vis-0.9/lua/. rootfs/usr/share/vis/
 tic -x -o rootfs/usr/share/terminfo -e linux,vt102,xterm,xterm-256color,screen,tmux,tmux-256color ncurses-6.5/misc/terminfo.src
 cp cacert.pem rootfs/etc/ssl/cert.pem
-cp busybox-$BUSYBOX/examples/udhcp/simple.script rootfs/usr/share/udhcpc/default.script
+sed 's|^RESOLV_CONF=.*|RESOLV_CONF=/run/resolv.dhcp  # DNS stays on the local DoT resolver|' busybox-$BUSYBOX/examples/udhcp/simple.script > rootfs/usr/share/udhcpc/default.script
 cp "$TOP/files/tmux.conf" "$TOP/files/profile" rootfs/etc/
 cp "$TOP/files/w3m-config" rootfs/etc/w3m/config
 cp "$TOP/files/theme-switch" rootfs/usr/bin/theme && chmod +x rootfs/usr/bin/theme
@@ -506,8 +519,8 @@ open(p,'w').write(s)
 PY
 # optional media for the demo (NOTLFS_MEDIA=dir: *.webm -> /root/media, *.flac -> /root/music)
 if [ -n "${NOTLFS_MEDIA:-}" ]; then mkdir -p rootfs/root/media rootfs/root/music; cp "$NOTLFS_MEDIA"/*.webm rootfs/root/media/ 2>/dev/null; cp "$NOTLFS_MEDIA"/*.flac rootfs/root/music/ 2>/dev/null; true; fi
-echo notlfs > rootfs/etc/hostname
-printf '127.0.0.1 localhost notlfs\n::1 localhost\n' > rootfs/etc/hosts
+echo localhost > rootfs/etc/hostname  # generic: nothing identifying
+printf '127.0.0.1 localhost\n::1 localhost\n' > rootfs/etc/hosts
 cat > rootfs/etc/os-release <<'OS'
 NAME=notlfs
 ID=notlfs
@@ -529,6 +542,12 @@ mkdir -p rootfs/etc/ssl/certs && ln -sf ../cert.pem rootfs/etc/ssl/certs/ca-cert
 mkdir -p rootfs/usr/sbin && cp nftables-1.1.1/src/nft rootfs/usr/sbin/ && cp "$TOP/files/nftables.conf" "$TOP/files/sysctl.conf" rootfs/etc/
 cp "$TOP/files/yt" "$TOP/files/wifi" rootfs/usr/bin/ && cp "$TOP/files/yt-instances" rootfs/etc/yt-instances
 ${CROSS}strip -s rootfs/usr/bin/dbus-daemon rootfs/usr/libexec/iwd rootfs/usr/bin/iwctl rootfs/usr/bin/ffmpeg rootfs/usr/bin/tget rootfs/usr/sbin/nft
+# privacy: Tor + torsocks/tor-route, unbound DoT resolver as the only nameserver
+cp tor-0.4.9.9/src/app/tor unbound-1.26.2/unbound rootfs/usr/bin/ && cp curl-8.11.1/curl-static rootfs/usr/bin/curl && ${CROSS}strip -s rootfs/usr/bin/tor rootfs/usr/bin/unbound rootfs/usr/bin/curl
+cp "$TOP/files/torsocks" "$TOP/files/tor-route" rootfs/usr/bin/ && chmod +x rootfs/usr/bin/torsocks rootfs/usr/bin/tor-route
+mkdir -p rootfs/etc/tor rootfs/etc/unbound rootfs/var/lib/tor && cp "$TOP/files/tor/torrc" rootfs/etc/tor/ && cp "$TOP/files/unbound/unbound.conf" rootfs/etc/unbound/
+echo 'tor:x:43:43:tor:/var/lib/tor:/bin/false' >> rootfs/etc/passwd && echo 'tor:x:43:' >> rootfs/etc/group
+echo 'nameserver 127.0.0.1' > rootfs/etc/resolv.conf
 # no dynamic loader on notlfs: refuse to ship any ELF that asks for one
 bad=$(find rootfs -type f -exec sh -c 'for f; do readelf -l "$f" 2>/dev/null | grep -q "program interpreter" && echo "$f"; done; :' _ {} +)
 [ -z "$bad" ] || { echo "dynamically linked binaries in rootfs: $bad" >&2; exit 1; }
