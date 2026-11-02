@@ -15,6 +15,7 @@ authoritative list.
 | init / supervision | skalibs 2.14.4, execline 2.9.7, s6 2.13.2, s6-linux-init 1.1.3 | no s6-rc |
 | Bootloader | syslinux 6.03 | isolinux (ISO) + extlinux (disk), static against musl |
 | Filesystem tools | e2fsprogs 1.47.1 | static `mke2fs` for installs, `e2fsck` (+ `fsck.ext2/3/4`) for repairs |
+| Disk encryption | cryptsetup 2.7.5 | static, kernel crypto backend, LUKS2; libdevmapper from LVM2 2.03.28, popt 1.19, json-c 0.18 |
 | Rescue helpers | notlfs | `notlfs-chroot` (mount + bind /dev /proc /sys /run, chroot in, clean up on exit), `hwcheck` (quick hardware overview; hostname, MACs, IPs, Wi-Fi SSID and serials masked, ctrl+r reveals for 5s) |
 
 ## TLS / crypto / network

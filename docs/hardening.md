@@ -5,8 +5,12 @@ bolted on at runtime — it's baked into the build.
 
 ## Kernel
 
-- **Lockdown in integrity mode** — blocks the usual ways userspace could modify
-  the running kernel.
+- **Lockdown in confidentiality mode** — the kernel is built with integrity
+  lockdown forced on, and every boot entry adds `lockdown=confidentiality`, which
+  also stops root from reading kernel memory.
+- **Boot command line** (ISO, disk installs, `run.sh`): `lockdown=confidentiality
+  slab_nomerge init_on_alloc=1 init_on_free=1 page_alloc.shuffle=1 pti=on
+  randomize_kstack_offset=on vsyscall=none debugfs=off`.
 - **Yama** — restricts `ptrace` (see `ptrace_scope` below).
 - **Landlock** — unprivileged sandboxing LSM available for programs that use it.
 - **No loadable modules.** Everything is built in; there is no module loading and
@@ -66,6 +70,42 @@ nftables with a **default-deny** policy on both the `input` and `forward` chains
 loopback, DHCP replies, and rate-limited ICMP. **Port 22 is opened only while the
 dropbear service is enabled** — the early `/init` adds the `tcp dport 22 accept`
 rule only if dropbear isn't marked `down`.
+
+## Disk encryption (`notlfs-install -e`)
+
+`notlfs-install -e /dev/sdX` makes a 128 MiB plain `/boot` partition and puts the
+root filesystem in a LUKS2 container (argon2id, aes-xts-plain64, 512-bit key).
+`/boot` holds the kernel and a ~1 MB unlock initrd (BusyBox + `cryptsetup` + a
+30-line `/init`, `files/unlock-init`) that asks for the passphrase, opens the root
+as `/dev/mapper/notlfs-root` and switches to it. Unencrypted installs stay the same
+and need no initrd. `notlfs-chroot` also accepts a LUKS partition: it unlocks it,
+chroots in, and closes it again on exit.
+
+`cryptsetup` uses the kernel's crypto API (AF_ALG) instead of OpenSSL, and only
+the device-mapper library from LVM2 is built; no LVM tools, token plugins or docs.
+The kernel `/boot` is not encrypted, so this protects data at rest, not against
+someone tampering with the kernel on a stolen-and-returned laptop.
+
+## Intel ME / AMD PSP
+
+Linux cannot turn off Intel ME or AMD PSP: they are separate processors that run
+their own firmware before and alongside the OS. What notlfs does is leave out
+every driver Linux uses to talk to them, so nothing on the system can reach them:
+
+- Intel: `INTEL_MEI` and all `MEI_*` drivers (ME, TXE, GSC, HDCP, PXP, GSC proxy,
+  watchdog), and `INTEL_TXT`.
+- AMD: `CRYPTO_DEV_CCP` (CCP/PSP/SEV driver), `KVM_AMD_SEV`, `AMD_MEM_ENCRYPT`,
+  `AMDTEE`/`TEE`.
+- TPM: `TCG_CRB` (the interface firmware TPMs inside ME/PSP use) is off; in
+  practice no TPM driver is built at all.
+
+`build.sh` fails if any of these get turned back on. There are no loadable
+modules, so there is nothing to blacklist in `/etc/modprobe.d`.
+
+What this does **not** do: the ME/PSP firmware still runs, still has its own
+access to memory and (on some boards) the network. To actually cut it down you
+need firmware work: `me_cleaner` on supported Intel boards, or Libreboot/Canoeboot
+on the old ThinkPads and other boards they support.
 
 ## SSH (dropbear)
 

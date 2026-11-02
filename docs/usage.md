@@ -3,7 +3,7 @@
 ## Booting
 
 Boot `out/notlfs.iso` (BIOS only), or boot a disk you installed to with
-`notlfs-install`. In QEMU you can just use the included scripts:
+`notlfs-install` (`notlfs-install -e /dev/sdX` for an encrypted root). In QEMU you can just use the included scripts:
 
 ```sh
 ./run.sh        # serial console + tmux (default); Ctrl-A X quits QEMU

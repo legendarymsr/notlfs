@@ -90,10 +90,11 @@ and Rust with the musl target for newsboat: `rustup target add x86_64-unknown-li
 
 ## Hardening
 
-- Kernel: lockdown (integrity), Yama, Landlock, no modules, no /dev/mem, /dev/port, /proc/kcore, hardened usercopy, init_on_alloc/free and similar settings.
+- Kernel: lockdown (confidentiality via boot cmdline), no Intel ME / AMD PSP drivers (see docs/hardening.md), Yama, Landlock, no modules, no /dev/mem, /dev/port, /proc/kcore, hardened usercopy, init_on_alloc/free and similar settings.
 - sysctl (`files/sysctl.conf`): kptr/dmesg restrict, ptrace_scope=2, protected links/fifos, rp_filter, no redirects.
 - Userland: every C/C++ compile goes through `files/hardcc` (stack protector, clash protection, FORTIFY_SOURCE=2, static-pie, full RELRO).
 - Firewall: nftables default deny inbound; port 22 opens only while dropbear is enabled.
+- Disk encryption: `notlfs-install -e` makes a LUKS2 (argon2id) root with a tiny unlock initrd.
 - dropbear: key-only logins, no password logins.
 - /tmp and /dev/shm are mounted nosuid,nodev,noexec.
 - Every service logs through s6-log to /var/log/<svc>.
