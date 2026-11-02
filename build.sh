@@ -173,11 +173,12 @@ mb() { [ -f "$1/_b/.done" ] || (cd "$1" && shift && meson setup _b --native-file
 
 # libvpx (VP8/VP9) + libopus: free encoders for the ffmpeg CLI (webm)
 get https://github.com/webmproject/libvpx/archive/refs/tags/v1.14.1.tar.gz libvpx-1.14.1
-[ -f $SYS/lib/libvpx.a ] || (cd libvpx-1.14.1 && ./configure --prefix=$SYS --target=generic-gnu --disable-shared --enable-static --disable-examples --disable-tools --disable-docs --disable-unit-tests --enable-vp8 --enable-vp9 --enable-pic && make -j$JOBS && make install)
+[ -f $SYS/lib/libvpx.a ] || (cd libvpx-1.14.1 && ./configure --prefix=$SYS --target=generic-gnu --disable-shared --enable-static --disable-examples --disable-tools --disable-docs --disable-unit-tests --enable-vp8 --enable-vp9 --enable-pic \
+  && sed -i "s|--prefix=$SYS|--prefix=/usr|" vpx_config.c && make -j$JOBS && make install)  # build config string without the sysroot path
 get https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz opus-1.5.2
 [ -f $SYS/lib/libopus.a ] || (cd opus-1.5.2 && ./configure --prefix=$SYS --disable-shared --enable-static --disable-doc --disable-extra-programs && make -j$JOBS && make install)
 get https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz FFmpeg-n7.1
-[ -f FFmpeg-n7.1/.cli ] || (cd FFmpeg-n7.1 && { make distclean >/dev/null 2>&1 || true; } && ./configure --prefix=$SYS --cc="$CC" --ar="$AR" \
+[ -f FFmpeg-n7.1/.cli ] || (cd FFmpeg-n7.1 && { make distclean >/dev/null 2>&1 || true; } && ./configure --prefix=/usr --datadir=/usr/share/ffmpeg --cc="$CC" --ar="$AR" \
   --ranlib="$RANLIB" --pkg-config=pkg-config --pkg-config-flags=--static --enable-static --disable-shared --disable-ffplay --disable-ffprobe --disable-doc \
   --disable-autodetect --disable-x86asm --enable-zlib --enable-libtls --enable-libvpx --enable-libopus --disable-everything --enable-filters --enable-bsfs \
   --enable-decoder=h264,hevc,vp8,vp9,mpeg4,mpeg1video,mpeg2video,mjpeg,png,theora,rawvideo,wrapped_avframe,aac,mp3,mp3float,opus,vorbis,flac,ac3,eac3,pcm_s16le,pcm_s24le,pcm_f32le,ass,ssa,subrip,webvtt,movtext \
@@ -185,7 +186,8 @@ get https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz FFmpeg-n7.1
   --enable-parser=h264,hevc,vp8,vp9,mpeg4video,mpegvideo,aac,mpegaudio,opus,vorbis,flac,ac3,png,mjpeg \
   --enable-encoder=png,mjpeg,libvpx_vp8,libvpx_vp9,libopus,flac,vorbis,ffv1,pcm_s16le,wrapped_avframe \
   --enable-muxer=webm,matroska,ogg,opus,flac,wav,null,image2 --enable-demuxer=hls --enable-protocol=file,pipe,http,https,tcp,tls,hls,crypto --enable-indev=lavfi \
-  --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" && sed -i 's|^#define FFMPEG_CONFIGURATION .*|#define FFMPEG_CONFIGURATION "notlfs build"|' config.h && make -j$JOBS && make install && touch .cli)
+  --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" && sed -i 's|^#define FFMPEG_CONFIGURATION .*|#define FFMPEG_CONFIGURATION "notlfs build"|' config.h && make -j$JOBS && rm -rf _st && make install DESTDIR=$PWD/_st && cp -a _st/usr/. $SYS/ \
+  && sed -i "s|^prefix=.*|prefix=$SYS|" $SYS/lib/pkgconfig/libav*.pc $SYS/lib/pkgconfig/libsw*.pc && touch .cli)  # prefix /usr: no sysroot path in the libs
 
 getJ https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz freetype-2.13.3
 mb freetype-2.13.3 -Dbrotli=disabled -Dbzip2=disabled -Dharfbuzz=disabled -Dpng=disabled -Dzlib=disabled
@@ -303,7 +305,8 @@ pc() { printf 'prefix=%s\nName: %s\nDescription: %s\nVersion: %s\nCflags: %s\nLi
 get https://www.sqlite.org/2024/sqlite-autoconf-3470200.tar.gz sqlite-autoconf-3470200
 [ -f $SYS/lib/libsqlite3.a ] || (cd sqlite-autoconf-3470200 && cfg --disable-readline)
 getJ https://download.gnome.org/sources/libxml2/2.13/libxml2-2.13.5.tar.xz libxml2-2.13.5
-[ -f $SYS/lib/libxml2.a ] || (cd libxml2-2.13.5 && cfg --without-python --without-lzma --without-icu --with-zlib=$SYS)
+[ -f $SYS/lib/libxml2.a ] || (cd libxml2-2.13.5 && ./configure --prefix=/usr --sysconfdir=/etc --disable-shared --enable-static --without-python --without-lzma --without-icu --with-zlib=$SYS \
+  && make -j$JOBS && rm -rf _st && make install DESTDIR=$PWD/_st && cp -a _st/usr/. $SYS/ && sed -i "s|^prefix=.*|prefix=$SYS|" $SYS/lib/pkgconfig/libxml-2.0.pc)  # catalog path /etc/xml, not the sysroot
 get https://s3.amazonaws.com/json-c_releases/releases/json-c-0.18.tar.gz json-c-0.18
 [ -f $SYS/lib/libjson-c.a ] || (cmake -S json-c-0.18 -B jsonc-build -DCMAKE_C_COMPILER=$CC -DCMAKE_INSTALL_PREFIX=$SYS -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -DBUILD_APPS=OFF && cmake --build jsonc-build -j$JOBS && cmake --install jsonc-build)
 get https://github.com/newsboat/stfl/archive/bbb2404580e845df2556560112c8aefa27494d66.tar.gz stfl-bbb2404580e845df2556560112c8aefa27494d66
