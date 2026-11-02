@@ -1,6 +1,6 @@
 #!/bin/sh
 # notlfs-chroot: chroot into an installed system for rescue work.
-# usage: notlfs-chroot /dev/sdXN [mountpoint] [command...]
+# usage: notlfs-chroot /dev/sdXN [mountpoint-dir] [command...]  (default mountpoint /mnt/root)
 #        notlfs-chroot /already/mounted/dir [command...]
 set -e
 die() { echo "notlfs-chroot: $*" >&2; exit 1; }
@@ -11,7 +11,8 @@ src=$1; shift
 MOUNTED_ROOT=
 if [ -b "$src" ]; then
     root=/mnt/root
-    case "$1" in /*) [ -b "$1" ] || { root=$1; shift; } ;; esac
+    # 2nd arg is a mountpoint only if it is a directory; otherwise it is the command
+    [ -n "$1" ] && [ -d "$1" ] && { root=$1; shift; }
     mkdir -p "$root"
     mount "$src" "$root" || die "cannot mount $src"
     MOUNTED_ROOT=1
@@ -24,8 +25,13 @@ root=${root%/}
 [ -e "$root/bin/sh" ] || [ -L "$root/bin/sh" ] || echo "notlfs-chroot: warning: $root/bin/sh not found" >&2
 
 MOUNTS=
+RESOLV=
 cleanup() {
     trap - EXIT INT TERM HUP
+    if [ -n "$RESOLV" ]; then
+        rm -f "$root/etc/resolv.conf"
+        [ "$RESOLV" = saved ] && mv "$root/etc/resolv.conf.notlfs-chroot" "$root/etc/resolv.conf"
+    fi
     for m in $MOUNTS; do umount "$m" 2>/dev/null || umount -l "$m" 2>/dev/null; done
     [ -n "$MOUNTED_ROOT" ] && { umount "$root" 2>/dev/null || umount -l "$root"; }
 }
@@ -39,8 +45,12 @@ for d in dev dev/pts proc sys run; do
     MOUNTS="$root/$d $MOUNTS"   # reverse order for unmount
 done
 if [ -f /etc/resolv.conf ]; then
+    # use the live system's DNS inside, put the original back on exit
     mkdir -p "$root/etc"
-    rm -f "$root/etc/resolv.conf" 2>/dev/null || true
+    RESOLV=new
+    if [ -e "$root/etc/resolv.conf" ] || [ -L "$root/etc/resolv.conf" ]; then
+        mv "$root/etc/resolv.conf" "$root/etc/resolv.conf.notlfs-chroot" && RESOLV=saved
+    fi
     cp /etc/resolv.conf "$root/etc/resolv.conf" || true
 fi
 
