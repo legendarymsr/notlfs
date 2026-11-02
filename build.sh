@@ -107,7 +107,9 @@ get https://github.com/tmux/tmux/releases/download/3.5a/tmux-3.5a.tar.gz tmux-3.
   LIBEVENT_CFLAGS=-I$SYS/include LIBEVENT_LIBS=-levent ./configure --enable-static --disable-utf8proc && make -j$JOBS)
 
 get https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.9.2.tar.gz libressl-3.9.2
-[ -f $SYS/lib/libssl.a ] || (cd libressl-3.9.2 && cfg --disable-tests)
+# openssldir=/etc/ssl: the default CA file/dir baked into libcrypto/libtls must be the target path, not the sysroot
+[ -f $SYS/lib/libssl.a ] || (cd libressl-3.9.2 && ./configure --prefix=$SYS --disable-shared --enable-static --disable-tests --with-openssldir=/etc/ssl \
+  && make -j$JOBS && rm -rf _st && make install DESTDIR=$PWD/_st && cp -a _st$SYS/. $SYS/)
 
 get https://github.com/ivmai/bdwgc/releases/download/v8.2.8/gc-8.2.8.tar.gz gc-8.2.8
 [ -f $SYS/lib/libgc.a ] || (cd gc-8.2.8 && cfg --disable-threads --disable-docs)
@@ -154,9 +156,9 @@ GITOPTS="prefix=/usr NO_GETTEXT=1 NO_TCLTK=1 NO_PERL=1 NO_PYTHON=1 NO_EXPAT=1 NO
   CURL_LDFLAGS="-lcurl -lssl -lcrypto -lz" all install DESTDIR=$PWD/../git-install)
 unset CC AR RANLIB CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
 
-# 2g. catgirl (IRC, plain make against LibreSSL libtls + ncursesw; CA path pinned, libtls' default points into the sysroot), aerc (Go, CGO off)
+# 2g. catgirl (IRC, plain make against LibreSSL libtls + ncursesw), aerc (Go, CGO off)
 get https://git.causal.agency/catgirl/snapshot/catgirl-2.2a.tar.gz catgirl-2.2a
-[ -f catgirl-2.2a/catgirl ] || (cd catgirl-2.2a && sed -i -e 's|^#ifdef __OpenBSD__$|#if 1|' -e 's|tls_default_ca_cert_file()|"/etc/ssl/cert.pem"|' irc.c && printf '%s\n' \
+[ -f catgirl-2.2a/catgirl ] || (cd catgirl-2.2a && printf '%s\n' \
   "CFLAGS += -Os -Wno-pedantic -D_GNU_SOURCE -I$SYS/include -I$SYS/include/ncursesw -D'OPENSSL_BIN=\"/usr/bin/openssl\"'" \
   'OBJS += compat_readpassphrase.o' 'LDADD.libtls = -ltls -lssl -lcrypto -lpthread' 'LDADD.ncursesw = -lncursesw' > config.mk && \
   make -j$JOBS CC="${CROSS}gcc" LDFLAGS="-static -L$SYS/lib" catgirl)
