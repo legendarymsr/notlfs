@@ -38,6 +38,8 @@ Extras:
 - **Tor 0.4.9.9** runs as an s6 service (client only, as user `tor`). `torsocks curl ...` sends one
   command through it (proxy variables; real torsocks needs a dynamic loader notlfs doesn't have),
   `tor-route on` sends *all* TCP and DNS through it (nftables redirect, other UDP/IPv6 dropped), `tor-route off` undoes it.
+  `.onion` names work out of the box in any program (e.g. `w3m http://...onion/`): unbound hands them to Tor's DNSPort
+  and nftables sends the mapped 10.192.0.0/10 addresses into Tor's TransPort.
   Disable the service with `touch /etc/s6-linux-init/current/run-image/service/tor/down`.
 - **Encrypted DNS:** unbound 1.26.2 on 127.0.0.1 is the only nameserver and forwards over DNS-over-TLS
   (Quad9, Mullvad). DHCP never rewrites `/etc/resolv.conf`. Chosen over stubby (needs getdns + libyaml + cmake)
