@@ -96,7 +96,7 @@ screen() {
     else printf '  %sctrl+r reveal · q quit%s\n' "$D" "$R"; fi
 }
 printf '\033[?25l'
-stty raw -echo isig min 1 time 0
+stty raw -echo isig opost onlcr min 1 time 0  # opost: keep \n -> \r\n so lines start at column 0
 screen
 while :; do
     k=$(key)

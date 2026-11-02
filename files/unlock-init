@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # notlfs unlock initrd: open the LUKS2 root named by notlfs.luks=UUID, then switch to it.
 /bin/busybox --install -s /bin
+# the passphrase prompt goes to /dev/console = the last console= on the cmdline (tty1 for disk installs)
 export PATH=/sbin:/bin
 mount -t devtmpfs -o nosuid,noexec dev /dev
 exec </dev/console >/dev/console 2>&1
