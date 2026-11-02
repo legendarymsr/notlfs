@@ -93,6 +93,29 @@ the same inputs give the same system. That's the useful part of the Nix/Guix
 idea. What notlfs doesn't do is ceremony that slows you down without making the
 result better.
 
+## suckless: good idea, bad execution
+
+I actually like the idea behind suckless: small programs, readable code, do one
+thing well. I just hate how it's implemented, and I hate the elitism around it.
+
+- **Config by recompiling.** Changing a colour means editing `config.h` and
+  rebuilding. Then you need fifteen out-of-tree patches that stop applying to
+  each other. That isn't simple, it just moves the complexity onto you.
+- **Minimal on top of a mountain.** dwm brags about being under 2000 lines of C
+  while running on Xorg, which is millions of lines and a protocol from 1987.
+  If you really want minimal, why have a display server at all? A TTY already
+  has a framebuffer, tmux tiles, and mpv plays video straight through DRM.
+  That's how notlfs works, with zero lines of X.
+- **Missing features as a virtue.** st has no scrollback unless you patch it in,
+  and that's apparently a feature. It isn't. It's just missing.
+- **The attitude.** "If you can't patch C you shouldn't use our software" isn't
+  a philosophy, it's gatekeeping. Good tools should be simple to use, not just
+  simple to read.
+
+notlfs takes the good half: small tools, no duplicates, code you can follow.
+It configures them with normal config files, and it doesn't tell anyone they're
+doing Linux wrong.
+
 ## What notlfs is not
 
 - **Not a replacement for LFS.** Linux From Scratch is the textbook. If you
