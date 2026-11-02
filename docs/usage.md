@@ -76,7 +76,12 @@ answers, shows results in an fzf picker, then streams the chosen video through m
 ## Email, IRC, SSH
 
 - **Email:** `aerc` — on first run it starts the account-setup wizard.
-- **IRC:** `irssi`.
+- **IRC:** `catgirl libera` connects to irc.libera.chat over TLS. Set your nick in a copy of
+  `/etc/xdg/catgirl/libera` at `~/.config/catgirl/libera` (nick, join and SASL lines are there, commented out).
+  Nick colors use the 16 console colors, so they follow the Tokyo Night palette. `/help` opens the manual.
+- **Volume:** the tmux bar shows `vol 45%` or `muted` (nothing on machines without a sound card).
+  `prefix +` (or `=`) raises it 5%, `prefix _` lowers it 5%, `prefix m` toggles mute. From a shell:
+  `vol up`, `vol down`, `vol mute`, `vol`. It drives the ALSA `Master` control (`PCM` if there is none).
 - **Music:** `ncmpcpp` (talks to the mpd service; put music in `/root/music`).
 - **Feeds:** `newsboat` (URLs in `/root/.newsboat/urls`).
 - **SSH in:** dropbear listens on port 22 (key-only). Put your public key in

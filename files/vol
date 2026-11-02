@@ -1,0 +1,11 @@
+#!/bin/sh
+# vol [up|down|mute|print]: Master volume via amixer. Prints "vol 45%" or "muted" for the tmux bar,
+# and nothing when there is no sound card.
+c=Master; amixer sget $c >/dev/null 2>&1 || c=PCM
+case $1 in
+  up)   amixer -q sset $c 5%+ unmute ;;
+  down) amixer -q sset $c 5%- ;;
+  mute) amixer -q sset $c toggle ;;
+esac 2>/dev/null
+s=$(amixer sget $c 2>/dev/null | grep -o '\[[0-9]*%\]\|\[o[nf]*\]' | head -2 | tr -d '[]' | tr '\n' ' ') || exit 0
+case $s in '') exit 0;; *off*) printf 'muted ';; *) printf 'vol %s ' "${s%% *}";; esac

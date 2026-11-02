@@ -84,6 +84,10 @@ The terminal still does real work: w3m browses the web, mpv plays video (to the
 DRM framebuffer or inline in the terminal with `--vo=tct`), and the full suite of
 TUI tools covers mail, IRC, music, files, feeds, calendars, and spreadsheets.
 
+IRC is catgirl rather than irssi: one small C program linked against the
+LibreSSL libtls already in the tree, where irssi needed all of glib. (It also
+suits a kernel called `catgirls`.)
+
 ## tmux as the WM vs a tiling WM
 
 **notlfs uses tmux as its window manager.**

@@ -154,19 +154,12 @@ GITOPTS="prefix=/usr NO_GETTEXT=1 NO_TCLTK=1 NO_PERL=1 NO_PYTHON=1 NO_EXPAT=1 NO
   CURL_LDFLAGS="-lcurl -lssl -lcrypto -lz" all install DESTDIR=$PWD/../git-install)
 unset CC AR RANLIB CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
 
-# 2g. glib + irssi (meson), aerc (Go, CGO off)
-export CC="${CROSS}gcc" AR="${CROSS}ar"
-export CFLAGS="-Os -I$SYS/include -I$SYS/include/ncursesw" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=$SYS/lib/pkgconfig PKG_CONFIG_LIBDIR=$SYS/lib/pkgconfig
-getJ https://download.gnome.org/sources/glib/2.82/glib-2.82.4.tar.xz glib-2.82.4
-[ -f $SYS/lib/libglib-2.0.a ] || (cd glib-2.82.4 && meson setup _b --native-file ../nocmake.ini --prefix=$SYS --libdir=lib --default-library=static \
-  --prefer-static --buildtype=minsize -Dtests=false -Dintrospection=disabled -Dnls=disabled -Dlibmount=disabled -Dselinux=disabled -Dxattr=false \
-  -Dman-pages=disabled -Ddocumentation=false -Dglib_debug=disabled -Dsysprof=disabled && ninja -C _b install)
-getJ https://github.com/irssi/irssi/releases/download/1.4.5/irssi-1.4.5.tar.xz irssi-1.4.5
-[ -f irssi-1.4.5/_b/src/fe-text/irssi ] || (cd irssi-1.4.5 && \
-  sed -i "s|find_library(setupterm_provider, required : false)|find_library(setupterm_provider, required : false, dirs : '$SYS/lib')|" meson.build && \
-  meson setup _b --native-file ../nocmake.ini --prefix=/usr --sysconfdir=/etc --default-library=static --prefer-static --buildtype=minsize \
-  -Dwith-perl=no -Dwith-proxy=no -Dwith-otr=no -Denable-true-color=yes -Ddisable-utf8proc=yes && ninja -C _b)
-unset CC AR CFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
+# 2g. catgirl (IRC, plain make against LibreSSL libtls + ncursesw; CA path pinned, libtls' default points into the sysroot), aerc (Go, CGO off)
+get https://git.causal.agency/catgirl/snapshot/catgirl-2.2a.tar.gz catgirl-2.2a
+[ -f catgirl-2.2a/catgirl ] || (cd catgirl-2.2a && sed -i -e 's|^#ifdef __OpenBSD__$|#if 1|' -e 's|tls_default_ca_cert_file()|"/etc/ssl/cert.pem"|' irc.c && printf '%s\n' \
+  "CFLAGS += -Os -Wno-pedantic -D_GNU_SOURCE -I$SYS/include -I$SYS/include/ncursesw -D'OPENSSL_BIN=\"/usr/bin/openssl\"'" \
+  'OBJS += compat_readpassphrase.o' 'LDADD.libtls = -ltls -lssl -lcrypto -lpthread' 'LDADD.ncursesw = -lncursesw' > config.mk && \
+  make -j$JOBS CC="${CROSS}gcc" LDFLAGS="-static -L$SYS/lib" catgirl)
 get https://git.sr.ht/~rjarry/aerc/archive/0.20.1.tar.gz aerc-0.20.1
 [ -f aerc-0.20.1/aerc ] || (cd aerc-0.20.1 && CGO_ENABLED=0 go build -ldflags "-s -w -buildid=" -o aerc .)
 
@@ -427,7 +420,7 @@ cp "$TOP/files/w3m-config" rootfs/etc/w3m/config
 cp "$TOP/files/theme-switch" rootfs/usr/bin/theme && chmod +x rootfs/usr/bin/theme
 cp "$TOP/files/tui" rootfs/bin/tui && cp "$TOP/files/rootsh" rootfs/bin/rootsh
 cp "$TOP/files/notlfs-chroot" "$TOP/files/hwcheck" rootfs/bin/ && chmod +x rootfs/bin/notlfs-chroot rootfs/bin/hwcheck
-cp "$TOP/files/tmux-ws" "$TOP/files/tmux-bat" "$TOP/files/launch" rootfs/usr/bin/ && chmod +x rootfs/usr/bin/tmux-ws rootfs/usr/bin/tmux-bat rootfs/usr/bin/launch && cp "$TOP/files/motd" rootfs/etc/motd && cp "$TOP/files/us-altshift.bmap" rootfs/etc/
+cp "$TOP/files/vol" "$TOP/files/tmux-ws" "$TOP/files/tmux-bat" "$TOP/files/launch" rootfs/usr/bin/ && chmod +x rootfs/usr/bin/vol rootfs/usr/bin/tmux-ws rootfs/usr/bin/tmux-bat rootfs/usr/bin/launch && cp "$TOP/files/motd" rootfs/etc/motd && cp "$TOP/files/us-altshift.bmap" rootfs/etc/
 # console font: Terminus 14x28 (OFL), ~91x28 on a 1280x800 console; rc.init loads it on tty1/tty2
 get https://downloads.sourceforge.net/project/terminus-font/terminus-font-4.49/terminus-font-4.49.1.tar.gz terminus-font-4.49.1
 [ -f terminus-font-4.49.1/ter-v28n.psf ] || (cd terminus-font-4.49.1 && ./configure >/dev/null && make ter-v28n.psf >/dev/null)
@@ -439,6 +432,7 @@ cp -r stage-fc/etc/fonts rootfs/etc/ && cp -r stage-fc/usr/share/fontconfig root
 get https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.tar.bz2 dejavu-fonts-ttf-2.37
 cp dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono.ttf dejavu-fonts-ttf-2.37/LICENSE rootfs/usr/share/fonts/
 cp "$TOP/files/mpv.conf" rootfs/etc/mpv/mpv.conf
+mkdir -p rootfs/etc/xdg/catgirl && cp "$TOP/files/catgirl.conf" rootfs/etc/xdg/catgirl/libera && mkdir -p rootfs/root/.local/share/catgirl  # catgirl does not create its save/log dir
 chmod +x rootfs/bin/tui rootfs/usr/share/udhcpc/default.script
 echo 'root:x:0:0:root:/root:/bin/sh' > rootfs/etc/passwd
 echo 'root:*:0:0:99999:7:::' > rootfs/etc/shadow
@@ -453,7 +447,7 @@ for f in rootfs/usr/libexec/git-core/*; do  # dedupe git's builtin copies into s
   if cmp -s "$f" rootfs/usr/bin/git; then ln -sf /usr/bin/git "$f"
   elif cmp -s "$f" rootfs/usr/libexec/git-core/git-remote-http && [ "${f##*/}" != git-remote-http ]; then ln -sf git-remote-http "$f"; fi
 done
-cp irssi-1.4.5/_b/src/fe-text/irssi aerc-0.20.1/aerc mpv-0.41.0/_b/mpv alsa-utils-1.2.13/amixer/amixer alsa-utils-1.2.13/aplay/aplay rootfs/usr/bin/
+cp catgirl-2.2a/catgirl aerc-0.20.1/aerc mpv-0.41.0/_b/mpv alsa-utils-1.2.13/amixer/amixer alsa-utils-1.2.13/aplay/aplay rootfs/usr/bin/
 mkdir -p rootfs/usr/share/aerc && cp -r aerc-0.20.1/config/*.conf aerc-0.20.1/stylesets aerc-0.20.1/templates rootfs/usr/share/aerc/
 # TUI tools: htop, lf, mpd + ncmpcpp, newsboat, extras
 cp extra-bin/* htop-3.3.0/htop go-bin/lf mpd-0.23.17/_b/mpd ncmpcpp-0.10.1/src/ncmpcpp rootfs/usr/bin/

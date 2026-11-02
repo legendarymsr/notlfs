@@ -51,7 +51,7 @@ authoritative list.
 | --- | --- | --- |
 | w3m | 0.5.3+git20230121 | terminal web browser, HTTPS via LibreSSL |
 | aerc | 0.20.1 | email client (Go); starts an account wizard |
-| irssi | 1.4.5 | IRC client |
+| catgirl | 2.2a | IRC client (TLS via LibreSSL libtls; config in /etc/xdg/catgirl/libera) |
 | newsboat | 2.41 | RSS/Atom reader (Rust, musl target) |
 
 ## Media
@@ -80,7 +80,7 @@ Vulkan headers and libdisplay-info.
 - DejaVu Sans Mono (2.37) + fontconfig 2.15.0 — for libass and the mpv OSD.
 - Terminus (terminus-font 4.49.1) — a larger, readable console font loaded on
   tty1/tty2 via `setfont`.
-- Supporting libraries: zlib 1.3.1, glib 2.82.4, libxml2 2.13.5, expat 2.6.4,
+- Supporting libraries: zlib 1.3.1, libxml2 2.13.5, expat 2.6.4,
   json-c 0.18, readline 8.2, sqlite 3.47.2, bdwgc 8.2.8, fmt 10.2.1,
   fortify-headers 3.0.2, dbus 1.14.10, stfl (for newsboat).
 
@@ -101,6 +101,6 @@ mpd/ncmpcpp vs mpv for audio.
 ## Deliberately *not* included
 
 - **cmus, weechat** — both load core functionality as `dlopen`-ed shared-object
-  plugins, which a static musl binary can't do. irssi covers IRC; mpd + ncmpcpp
+  plugins, which a static musl binary can't do. catgirl covers IRC; mpd + ncmpcpp
   cover music.
 - **GRUB, UEFI** — syslinux only, BIOS boot only.

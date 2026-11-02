@@ -17,7 +17,7 @@ rootfs, the initramfs, and the ISO.
 1. Grabs the prebuilt musl cross toolchain from musl.cc.
 2. Builds the static musl userland: BusyBox, fastfetch, ncurses, libevent,
    tmux, LibreSSL, bdwgc, w3m, Lua + LPeg, libtermkey, vis, dropbear, zlib,
-   curl, git, glib, irssi, FFmpeg, the mpv media stack (freetype, fribidi,
+   curl, git, catgirl, FFmpeg, the mpv media stack (freetype, fribidi,
    harfbuzz, libass, libdrm, libplacebo, mpv), and the rest. A handful of tools
    are built with Go (CGO off): aerc, lf, fzf. newsboat is built with Rust
    against the musl target. See [packages](packages.md) for the full list and

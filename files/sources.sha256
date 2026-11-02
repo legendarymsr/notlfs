@@ -8,7 +8,6 @@ d86bb37014fd69b8d83ccb904ac979c6b8ddf59ee3dbc80f5a274525e4d5830a  https://calcur
 a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80  https://curl.se/download/curl-8.11.1.tar.gz
 ba1f21d2bd9d339da2d4aa8780c09df32fea87998b73da24f49ab9df1e36a50f  https://dbus.freedesktop.org/releases/dbus/dbus-1.14.10.tar.xz
 5fe2bb841abe72374bb242dbb93293c4ae053078432d896a7481b2ff10be9572  https://dev.yorhel.nl/download/ncdu-1.20.tar.gz
-37dd0877fe964cd15e9a2710b044a1830fb1bd93652a6d0cb6b8b2dff187c709  https://download.gnome.org/sources/glib/2.82/glib-2.82.4.tar.xz
 74fc163217a3964257d3be39af943e08861263c4231f9ef5b496b6f6d4c7b2b6  https://download.gnome.org/sources/libxml2/2.13/libxml2-2.13.5.tar.xz
 0550350666d427c74daeb85d5ac7bb353acba5f76956395995311a9c6f063289  https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz
 65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1  https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz
@@ -24,7 +23,7 @@ b6ce2341b3953efd4b08fbd193b325c9187ddc0437ab01372c142e6075bb757a  https://github
 1b1cde5b235d40479e91be2f0e88a309e3214c8ab470ec8a2744d82a5a9ea05c  https://github.com/fribidi/fribidi/releases/download/v1.0.16/fribidi-1.0.16.tar.xz
 6ce3520f2d089a33cef0fc48321334b8e0b72141f6a763719aaaecd2779ecb82  https://github.com/harfbuzz/harfbuzz/releases/download/10.1.0/harfbuzz-10.1.0.tar.xz
 a69acf9b42ff592c4861010fce7d8006805f0d6ef0e8ee647a6ee6e59b743d5c  https://github.com/htop-dev/htop/releases/download/3.3.0/htop-3.3.0.tar.xz
-72a951cb0ad622785a8962801f005a3a412736c7e7e3ce152f176287c52fe062  https://github.com/irssi/irssi/releases/download/1.4.5/irssi-1.4.5.tar.xz
+c6d760aaee134e052586def7a9103543f7281fde6531fbcb41086470794297c2  https://git.causal.agency/catgirl/snapshot/catgirl-2.2a.tar.gz
 7649020621cb26325e1fb5c8742590d92fb48ce5c259b502faf7d9fb5dabb160  https://github.com/ivmai/bdwgc/releases/download/v8.2.8/gc-8.2.8.tar.gz
 f655cc1366fc10058a2bd505bb88ca78e653ff7526c1b81774c44b9d841210e3  https://github.com/jonas/tig/releases/download/tig-2.5.10/tig-2.5.10.tar.gz
 478c9ca129fd2e3443fe27314b455e211e0d8c60bc8ff7df703873deeee580c2  https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-1.7.1.tar.gz

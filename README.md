@@ -11,7 +11,7 @@ Needs: cmake, curl, tar, bzip2, xz, gcc, make, flex, bison, bc, libelf-dev, cpio
 
 What `build.sh` does:
 1. Grabs the prebuilt musl cross toolchain from musl.cc
-2. Builds static BusyBox, fastfetch, ncurses, libevent, tmux 3.5a, LibreSSL 3.9.2, bdwgc 8.2.8 and w3m 0.5.3+git20230121, Lua 5.4.7, LPeg 1.1.0, libtermkey 0.22 vis 0.9, dropbear 2026.94, zlib, curl 8.11.1, git 2.47.1, glib 2.82.4, irssi 1.4.5, FFmpeg 7.1, freetype, fribidi, harfbuzz, libass, libdrm, libplacebo and mpv 0.41.0 against musl; aerc 0.20.1, lf r42 and fzf 0.74.5 are built with Go (CGO off)
+2. Builds static BusyBox, fastfetch, ncurses, libevent, tmux 3.5a, LibreSSL 3.9.2, bdwgc 8.2.8 and w3m 0.5.3+git20230121, Lua 5.4.7, LPeg 1.1.0, libtermkey 0.22 vis 0.9, dropbear 2026.94, zlib, curl 8.11.1, git 2.47.1, catgirl 2.2a, FFmpeg 7.1, freetype, fribidi, harfbuzz, libass, libdrm, libplacebo and mpv 0.41.0 against musl; aerc 0.20.1, lf r42 and fzf 0.74.5 are built with Go (CGO off)
 3. Downloads GNU Linux-libre from linux-libre.fsfla.org (sha256-pinned), builds x86_64 defconfig with no built-in firmware
 4. Makes a rootfs with BusyBox symlinks and s6 as init (s6-linux-init)
 5. Adds terminfo, a CA bundle, DHCP (udhcpc on eth0), /etc/tmux.conf, /etc/os-release, hostname notlfs and the fastfetch logo (files/)
@@ -30,7 +30,7 @@ tmux on the console acts like a small tiling WM (Tokyo Night themed; `Alt+?` sho
 Extras:
 - `ssh root@127.0.0.1 -p 2223` from the host (run.sh forwards it). Root has no password: put your key in `/root/.ssh/authorized_keys`. Host keys are generated on first connect.
 - `git clone https://...` works (curl + LibreSSL).
-- `irssi`, `aerc` (starts the account wizard).
+- `catgirl libera`, `aerc` (starts the account wizard).
 - `mpv --vo=drm file` plays video on the virtio-gpu display (QEMU window/screendump), e.g. `mpv --vo=drm av://lavfi:testsrc`. `--vo=tct` plays it in the terminal. No audio output.
 
 ## v0.11: fixes, a few small tools
@@ -62,7 +62,7 @@ Extras:
   music goes in `/root/music`) + ncmpcpp 0.10.1 (static boost 1.83), newsboat 2.41 (Rust, musl target; `/root/.newsboat/urls`
   has your GitHub feed).
 - **Not included:** cmus and weechat. Both load their core functionality (cmus: every input/output backend; weechat: IRC, relay,
-  everything) as shared-object plugins via `dlopen()`, which a static musl binary cannot do. irssi already covers IRC and
+  everything) as shared-object plugins via `dlopen()`, which a static musl binary cannot do. catgirl already covers IRC and
   mpd + ncmpcpp cover music.
 - **w3m on GitHub:** GitHub answers w3m's HTTP/1.0 requests with chunked bodies but no `Transfer-Encoding` header, so the first chunk
   size (`8000`) shows up at the top of the page. w3m has no chunked decoder, so fixing it means patching w3m; not done yet.
