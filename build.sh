@@ -97,7 +97,7 @@ cfg() { ./configure --prefix=$SYS --disable-shared --enable-static "$@"; make -j
 
 get https://invisible-mirror.net/archives/ncurses/ncurses-6.5.tar.gz ncurses-6.5
 [ -f $SYS/lib/libncursesw.a ] || (cd ncurses-6.5 && cfg --enable-widec --without-cxx --without-cxx-binding --without-ada \
-  --without-tests --without-progs --without-manpages --disable-db-install --with-default-terminfo-dir=/usr/share/terminfo)
+  --without-tests --without-progs --without-manpages --disable-db-install --with-default-terminfo-dir=/usr/share/terminfo --with-terminfo-dirs=/usr/share/terminfo)
 
 get https://github.com/libevent/libevent/releases/download/release-2.1.12-stable/libevent-2.1.12-stable.tar.gz libevent-2.1.12-stable
 [ -f $SYS/lib/libevent.a ] || (cd libevent-2.1.12-stable && cfg --disable-openssl --disable-samples --disable-libevent-regress)
@@ -185,7 +185,7 @@ get https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz FFmpeg-n7.1
   --enable-parser=h264,hevc,vp8,vp9,mpeg4video,mpegvideo,aac,mpegaudio,opus,vorbis,flac,ac3,png,mjpeg \
   --enable-encoder=png,mjpeg,libvpx_vp8,libvpx_vp9,libopus,flac,vorbis,ffv1,pcm_s16le,wrapped_avframe \
   --enable-muxer=webm,matroska,ogg,opus,flac,wav,null,image2 --enable-demuxer=hls --enable-protocol=file,pipe,http,https,tcp,tls,hls,crypto --enable-indev=lavfi \
-  --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" && make -j$JOBS && make install && touch .cli)
+  --extra-cflags="$CFLAGS" --extra-ldflags="$LDFLAGS" && sed -i 's|^#define FFMPEG_CONFIGURATION .*|#define FFMPEG_CONFIGURATION "notlfs build"|' config.h && make -j$JOBS && make install && touch .cli)
 
 getJ https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz freetype-2.13.3
 mb freetype-2.13.3 -Dbrotli=disabled -Dbzip2=disabled -Dharfbuzz=disabled -Dpng=disabled -Dzlib=disabled
@@ -223,6 +223,7 @@ grep -q stdc++ $SYS/lib/pkgconfig/libplacebo.pc || sed -i "s/^Libs: .*/& -lstdc+
 get https://gitlab.freedesktop.org/emersion/libdisplay-info/-/archive/0.2.0/libdisplay-info-0.2.0.tar.gz libdisplay-info-0.2.0
 mb libdisplay-info-0.2.0
 get https://github.com/mpv-player/mpv/archive/refs/tags/v0.41.0.tar.gz mpv-0.41.0
+sed -i "s/set_quoted('CONFIGURATION', meson.build_options())/set_quoted('CONFIGURATION', 'notlfs build')/" mpv-0.41.0/meson.build  # no build paths in mpv -v
 mb mpv-0.41.0 -Dsysconfdir=/etc -Dlibmpv=false -Dcplayer=true -Dlua=disabled -Djavascript=disabled -Dlibarchive=disabled -Dlibbluray=disabled -Ddvdnav=disabled \
   -Dcdda=disabled -Dalsa=enabled -Dpulse=disabled -Dpipewire=disabled -Djack=disabled -Dsdl2-audio=disabled -Dopenal=disabled \
   -Dx11=disabled -Dwayland=disabled -Dgl=disabled -Dvulkan=disabled -Degl=disabled -Ddrm=enabled -Dgbm=disabled -Dcaca=disabled \
@@ -320,7 +321,7 @@ B=$PWD/extra-bin; mkdir -p $B
 export PATH=$HOME/.cargo/bin:$PATH
 for c in ripgrep:rg; do [ -f $B/${c#*:} ] || (CC_x86_64_unknown_linux_musl=$CC CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=$CC CC= CFLAGS= LDFLAGS= cargo install --locked --version 15.2.0 --target x86_64-unknown-linux-musl --root $PWD/cargo-root ${c%:*} && cp cargo-root/bin/${c#*:} $B/); done
 get https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-1.7.1.tar.gz jq-1.7.1
-[ -f $B/jq ] || (cd jq-1.7.1 && ./configure --disable-shared --enable-static --enable-all-static --without-oniguruma --disable-docs && make -j$JOBS && cp jq $B/)
+[ -f $B/jq ] || (cd jq-1.7.1 && mkdir -p src && echo '#define JQ_CONFIG "notlfs static build"' > src/config_opts.inc && ./configure --disable-shared --enable-static --enable-all-static --without-oniguruma --disable-docs && make -j$JOBS && cp jq $B/)
 get https://dev.yorhel.nl/download/ncdu-1.20.tar.gz ncdu-1.20
 [ -f $B/ncdu ] || (cd ncdu-1.20 && ./configure CPPFLAGS="-I$SYS/include/ncursesw -I$SYS/include" --with-ncursesw LIBS=-lncursesw && make -j$JOBS && cp ncdu $B/)
 get https://calcurse.org/files/calcurse-4.8.1.tar.gz calcurse-4.8.1
@@ -339,7 +340,7 @@ export CFLAGS="-Os -I$SYS/include" LDFLAGS="-static -L$SYS/lib" PKG_CONFIG_PATH=
 get https://github.com/jonas/tig/releases/download/tig-2.5.10/tig-2.5.10.tar.gz tig-2.5.10
 [ -f $B/tig ] || (cd tig-2.5.10 && ./configure CPPFLAGS="-I$SYS/include/ncursesw -I$SYS/include" LIBS="-lncursesw" --with-ncursesw --without-readline && make -j$JOBS LDFLAGS="$LDFLAGS" && cp src/tig $B/)
 getJ https://dbus.freedesktop.org/releases/dbus/dbus-1.14.10.tar.xz dbus-1.14.10
-[ -f dbus-1.14.10/bus/dbus-daemon ] || (cd dbus-1.14.10 && ./configure --prefix=$SYS --disable-shared --enable-static --disable-systemd --disable-selinux --disable-apparmor --disable-libaudit --disable-tests --disable-doxygen-docs --disable-xml-docs --without-x --disable-launchd --with-system-socket=/run/dbus/system_bus_socket --sysconfdir=/etc --localstatedir=/var EXPAT_CFLAGS=-I$SYS/include EXPAT_LIBS=-lexpat && make -j$JOBS LDFLAGS="-all-static -L$SYS/lib" && make -C dbus install && cp dbus-1.pc $SYS/lib/pkgconfig/)
+[ -f dbus-1.14.10/bus/dbus-daemon ] || (cd dbus-1.14.10 && ./configure --prefix=/usr --disable-shared --enable-static --disable-systemd --disable-selinux --disable-apparmor --disable-libaudit --disable-tests --disable-doxygen-docs --disable-xml-docs --without-x --disable-launchd --with-system-socket=/run/dbus/system_bus_socket --sysconfdir=/etc --localstatedir=/var EXPAT_CFLAGS=-I$SYS/include EXPAT_LIBS=-lexpat && make -j$JOBS LDFLAGS="-all-static -L$SYS/lib" && rm -rf _st && make -C dbus install DESTDIR=$PWD/_st && cp -a _st/usr/. $SYS/ && sed "s|^prefix=.*|prefix=$SYS|" dbus-1.pc > $SYS/lib/pkgconfig/dbus-1.pc)  # prefix /usr so the daemon looks in /usr/share, not the sysroot
 getJ https://mirrors.edge.kernel.org/pub/linux/network/wireless/iwd-3.6.tar.xz iwd-3.6
 [ -f iwd-3.6/client/iwctl ] || (cd iwd-3.6 && ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --libexecdir=/usr/libexec --disable-systemd-service --disable-manual-pages --enable-client --disable-monitor DBUS_CFLAGS="-I$SYS/include/dbus-1.0 -I$SYS/lib/dbus-1.0/include" DBUS_LIBS="-ldbus-1" READLINE_CFLAGS="-I$SYS/include" READLINE_LIBS="-lreadline -lncursesw" && make -j$JOBS LDFLAGS="-all-static -L$SYS/lib")
 # 2l. firewall: nftables (static; the one firewall tool, BusyBox has none)
