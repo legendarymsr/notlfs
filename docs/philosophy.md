@@ -26,20 +26,86 @@ Because I wanted to prove a point: **you can build a genuinely minimal distro
 that is still mostly usable.** Minimal and usable aren't opposites. The
 ultra-minimal scene just acts like they are.
 
-notlfs is small because it's careful, not because it's starving:
+Size is a side effect, not the scoreboard. What minimal actually buys you is:
 
-- **It does real work.** It's musl + BusyBox and TTY-only, but you can edit
-  code, use git, manage files, read mail, chat on IRC, watch video, play
-  music, SSH around, get on Wi-Fi and rescue a broken install.
-- **No duplicates.** This is where the minimalism actually comes from. Every
-  tool earns its place, and if two tools do the same job, one goes. Cutting
-  duplicates is good taste. Cutting things people need is just self-harm.
-- **Usability wins ties.** A readable console font, a proper theme, a real
-  `e2fsck`, a working pager: if it makes the system meaningfully nicer to live
-  in, it stays, even if it costs a few megabytes.
+- **You can understand the whole thing.** One build script, one init system,
+  one shell, one of each tool. When something breaks, there are only so many
+  places it can be hiding.
+- **Less to attack.** Every daemon, listener and library is attack surface.
+  Fewer of them means fewer things to patch, audit and worry about.
+- **Less to maintain.** Fewer packages means fewer version bumps, fewer
+  breakages and a build you can actually keep pinned and reproducible.
+- **It runs on old hardware.** A Libreboot ThinkPad or a 2013 laptop shouldn't
+  need to struggle to boot a terminal.
+
+Those are the reasons. The megabyte count is just what falls out.
+
+## The rules
+
+Every package has to pass these, roughly in order:
+
+1. **Does someone actually need this to do real work?** If yes, it's in the
+   running. "Nobody needs X" usually means "I personally don't use X".
+2. **Does something already do this job?** If two tools overlap, one goes.
+   This is where almost all of the actual minimalism comes from.
+3. **Of the options, which is smallest *that still works properly*?** Not the
+   smallest, full stop. The smallest that doesn't make you suffer.
+4. **If it's a tie, usability wins.** A few MB is cheaper than a bad day.
+
+## What that looks like in practice
+
+These are real decisions from building notlfs, not hypotheticals:
+
+- **`vi` and `top` were dropped, `ed` stayed.** `vis` and `htop` do those jobs
+  better, so the BusyBox versions were pure duplicates. `ed` stays because it
+  works when nothing else does: a broken terminal, a serial console, a script.
+- **s6 over sinit.** sinit is smaller, but it can't restart a crashed service.
+  A Wi-Fi daemon that dies and stays dead isn't minimal, it's broken. s6
+  supervision costs a little and saves a lot.
+- **BusyBox's web, FTP and telnet servers are gone.** Nobody should be running
+  those, and leaving them in is attack surface for nothing.
+- **mpd keeps web streaming.** It pulls in more of ffmpeg, but internet radio is
+  a real feature people use. The fix for size is trimming ffmpeg to what mpd
+  needs, not deleting the feature.
+- **A small `yt` script instead of ytfzf + yt-dlp.** Searching via Invidious,
+  picking with `fzf` and playing in `mpv` needs curl, jq, fzf and mpv, all of
+  which are already there for other reasons. No Python runtime just for one
+  command.
+- **catgirl over irssi.** Smaller, simpler, TLS-only by default, and it fits a
+  kernel called *catgirls*.
+- **A real `e2fsck`, a rescue chroot script and `hwcheck`.** Rescue tools are
+  exactly what you need on the worst day, so they're never the thing to cut.
+- **Terminus and Tokyo Night everywhere.** A readable font and a consistent
+  theme cost almost nothing and make a TTY-only system genuinely pleasant.
+
+## Security and privacy count as usability
+
+A system that leaks your data or gets owned isn't usable either. So notlfs ships
+with an nftables firewall, LUKS2 disk encryption, kernel lockdown and hardening,
+and the Intel ME and AMD PSP drivers compiled out. Tools like `hwcheck` hide
+MAC addresses, IPs and network names by default. These aren't extras bolted on
+afterwards. They're part of what "working" means.
+
+## Reproducible, not ritual
+
+Every source is pinned to an exact version and the build is deterministic, so
+the same inputs give the same system. That's the useful part of the Nix/Guix
+idea. What notlfs doesn't do is ceremony that slows you down without making the
+result better.
+
+## What notlfs is not
+
+- **Not a replacement for LFS.** Linux From Scratch is the textbook. If you
+  want to learn how Linux works from the ground up, read it.
+- **Not a size competition.** If another distro is smaller, cool. Can you read
+  your mail on it?
+- **Not a desktop for everyone.** It's TTY-only and root-only by design. It's
+  for people who live in a terminal and want a system they fully understand.
 
 ## TL;DR
 
 I'm not chasing the smallest number. I think that whole game is cringe.
-notlfs is minimal *as a means*, not as the goal. The goal is a system that's
-lean, understandable, and still pleasant to actually use.
+notlfs is minimal *as a means*, not as the goal. Cut duplicates, keep what
+people need, and pick the smallest thing that still works properly. The goal
+is a system that's lean, understandable, secure and still pleasant to actually
+use.
