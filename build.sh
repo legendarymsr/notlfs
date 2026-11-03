@@ -412,6 +412,19 @@ make defconfig
   --disable INTEL_MEI_GSC_PROXY --disable INTEL_MEI_WDT --disable INTEL_TXT --disable CRYPTO_DEV_CCP --disable CRYPTO_DEV_CCP_DD \
   --disable CRYPTO_DEV_SP_CCP --disable CRYPTO_DEV_SP_PSP --disable KVM_AMD_SEV --disable AMD_MEM_ENCRYPT --disable AMDTEE --disable TEE --disable TCG_CRB \
   --disable MODULES  # no loadable modules: lockdown would force module signing, and a per-build random key breaks reproducibility
+# trim (DEBUG_KERNEL stays: it is only a menu gate, and SCHED_STACK_END_CHECK needs it): no debug/tracing, no old buses, exotic hardware, network filesystems or guest drivers besides virtio/KVM (see docs/hardening.md "Kernel trim")
+./scripts/config --disable KERNEL_GZIP --enable KERNEL_XZ \
+  --disable FTRACE --disable KPROBES --disable PROFILING --disable PERF_EVENTS --disable KALLSYMS_ALL --disable SLUB_DEBUG \
+  --disable BLK_DEBUG_FS --disable MAGIC_SYSRQ --disable AUDIT --disable SCHED_DEBUG --disable DEBUG_BUGVERBOSE --disable DEBUG_MISC \
+  --disable X86_DECODER_SELFTEST --disable PM_DEBUG --disable STACK_VALIDATION --disable IKCONFIG --disable BPF_SYSCALL --disable BPF_JIT \
+  --disable CGROUPS --disable NAMESPACES --disable CHECKPOINT_RESTORE --disable NUMA --disable XEN --disable HYPERV --disable JAILHOUSE_GUEST --disable ACRN_GUEST \
+  --disable PCCARD --disable AGP --disable EISA --disable ISA_BUS --disable FIREWIRE --disable INFINIBAND --disable PARPORT --disable HAMRADIO --disable CAN \
+  --disable PATA_AMD --disable PATA_OLDPIIX --disable PATA_SCH --disable NETWORK_FILESYSTEMS --disable NFS_FS --disable NET_SCHED --disable IP_VS \
+  --disable BRIDGE --disable NET_9P --disable INPUT_JOYSTICK --disable INPUT_TABLET --disable INPUT_TOUCHSCREEN --disable MACINTOSH_DRIVERS \
+  --disable HOTPLUG_PCI --disable QUOTA --disable AUTOFS_FS --disable EFIVAR_FS --disable HUGETLBFS --disable PROC_PAGE_MONITOR --disable USB_PRINTER \
+  --enable BLK_DEV_NVME --enable USB_UAS --enable USB_HID --enable THINKPAD_ACPI --enable APPLE_GMUX --enable SENSORS_APPLESMC --enable MOUSE_BCM5974 \
+  --enable SND_HDA_CODEC_REALTEK --enable SND_HDA_CODEC_ANALOG --enable SND_HDA_CODEC_SIGMATEL --enable SND_HDA_CODEC_CIRRUS --enable SND_HDA_CODEC_CONEXANT \
+  --enable SND_HDA_CODEC_HDMI --enable SND_USB_AUDIO --enable SYSFB_SIMPLEFB --enable DRM_SIMPLEDRM
 # NOTLFS_HWSIM=1: test build with simulated Wi-Fi radios built in (never for real hardware, it adds fake wlan devices)
 [ "${NOTLFS_HWSIM:-}" = 1 ] && ./scripts/config --enable MAC80211_HWSIM
 make olddefconfig
@@ -419,7 +432,8 @@ make olddefconfig
 for o in INTEL_MEI INTEL_MEI_ME INTEL_MEI_TXE INTEL_MEI_GSC INTEL_MEI_HDCP INTEL_MEI_PXP INTEL_MEI_GSC_PROXY INTEL_MEI_WDT INTEL_TXT \
   CRYPTO_DEV_CCP CRYPTO_DEV_CCP_DD CRYPTO_DEV_SP_PSP KVM_AMD_SEV AMDTEE TEE TCG_CRB; do
   grep -q "^CONFIG_$o=" .config && { echo "build.sh: CONFIG_$o is still enabled" >&2; exit 1; }; done
-for o in DM_CRYPT CRYPTO_XTS CRYPTO_USER_API_SKCIPHER CRYPTO_USER_API_HASH NF_TABLES_INET; do
+for o in DM_CRYPT CRYPTO_XTS CRYPTO_USER_API_SKCIPHER CRYPTO_USER_API_HASH NF_TABLES_INET BLK_DEV_LOOP ATH9K ATH5K CFG80211 SND_HDA_INTEL BLK_DEV_NVME \
+  SATA_AHCI USB_STORAGE VIRTIO_BLK DRM_SIMPLEDRM SWAP HARDENED_USERCOPY BUG_ON_DATA_CORRUPTION SCHED_STACK_END_CHECK SECURITY_LOCKDOWN_LSM KERNEL_XZ; do
   grep -q "^CONFIG_$o=y" .config || { echo "build.sh: CONFIG_$o missing" >&2; exit 1; }; done
 make -j$JOBS bzImage
 cp arch/x86/boot/bzImage "$TOP/out/"

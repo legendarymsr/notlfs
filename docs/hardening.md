@@ -132,3 +132,24 @@ on the old ThinkPads and other boards they support.
 
 Every service logs through **`s6-log`** to `/var/log/<svc>`. The `syslogd`
 service is `s6-socklog` + `s6-log` writing into `/var/log/syslog/current`.
+
+## Kernel trim
+
+The kernel starts from `defconfig` and then drops what notlfs never uses:
+ftrace, kprobes, profiling, BPF, magic SysRq, audit, cgroups, IKCONFIG and the
+SLUB/scheduler debug extras; NUMA, PCMCIA, AGP, EISA/ISA, FireWire, InfiniBand,
+parport, CAN and ham radio; old PATA controllers (PIIX stays for QEMU and old
+ThinkPads in IDE mode); NFS and other network filesystems, traffic shaping,
+IPVS and bridging; Xen, Hyper-V, Jailhouse and ACRN guests (KVM and virtio
+stay for testing); joysticks, tablets and touchscreens.
+
+It adds what real laptops need: NVMe, USB Attached SCSI, ThinkPad ACPI, Apple
+gmux/SMC and the bcm5974 MacBook touchpad, the common HDA codecs (Realtek,
+Conexant, Cirrus, IDT/Sigmatel, Analog, HDMI), USB audio, and simpledrm so
+GPUs without a driver (i915 is off) still get a KMS console from the firmware
+framebuffer. The image is XZ-compressed. Everything is built in, since loadable
+modules are disabled.
+
+`build.sh` fails if any of the kept essentials (dm-crypt, nftables, loop, the
+Wi-Fi stack, ath9k/ath5k, HDA, NVMe, AHCI, USB storage, virtio, simpledrm, swap
+or the hardening options) goes missing.
