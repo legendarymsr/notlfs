@@ -1,14 +1,15 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
-# notlfs-install [-y] [-e] /dev/sdX : WIPES the disk, makes one MBR ext4 partition,
-# copies the running system onto it and installs extlinux (BIOS boot).
-# -e: encrypted root: a small plain /boot partition + a LUKS2 (argon2id) root, unlocked at boot by a tiny initrd.
+# notlfs-install [-y] [-n] /dev/sdX : WIPES the disk, copies the running system onto it, installs extlinux (BIOS boot).
+# Default: encrypted root: a small plain /boot partition + a LUKS2 (argon2id) root, unlocked at boot by a tiny initrd.
+# -n: no encryption, one plain ext4 partition. Both get a /swapfile, used as encrypted swap (random key each boot).
 set -e
-Y=; E=
-while :; do case $1 in -y) Y=1; shift;; -e) E=1; shift;; *) break;; esac; done
+Y=; E=1
+while :; do case $1 in -y) Y=1; shift;; -e) E=1; shift;; -n) E=; shift;; *) break;; esac; done
 D=$1
-[ -b "$D" ] || { echo "usage: notlfs-install [-y] [-e] /dev/sdX   (disks: $(ls /sys/block | grep -v -e loop -e ram -e sr | tr '\n' ' '))"; exit 1; }
+[ -b "$D" ] || { echo "usage: notlfs-install [-y] [-n] /dev/sdX   (disks: $(ls /sys/block | grep -v -e loop -e ram -e sr | tr '\n' ' '))"; exit 1; }
 case $D in *[0-9]) P=${D}p1; P2=${D}p2;; *) P=${D}1; P2=${D}2;; esac
+[ -e /run/notlfs-amnesic ] && { echo "amnesic boot: disks are read-only, reboot normally to install"; exit 1; }
 if [ -z "$Y" ]; then printf 'This erases everything on %s. Type yes: ' "$D"; read a; [ "$a" = yes ] || exit 1; fi
 
 # kernel: from the boot ISO, or /boot/bzImage, or $KERNEL
@@ -66,6 +67,7 @@ for d in /*; do
 done
 mkdir -p $T/proc $T/sys $T/dev $T/run $T/tmp $T/mnt $T/boot/syslinux
 chmod 1777 $T/tmp
+rm -f $T/swapfile; dd if=/dev/zero of=$T/swapfile bs=1M count=${SWAPMB:-256} 2>/dev/null && chmod 600 $T/swapfile  # notlfs-cryptswap
 cp $K $T/boot/bzImage
 
 PU=$SIG-01

@@ -69,7 +69,7 @@ rustup target add x86_64-unknown-linux-musl
 Boot the ISO, then:
 
 ```sh
-notlfs-install /dev/sda      # asks you to type "yes"; -y skips the prompt
+notlfs-install /dev/sda      # asks you to type "yes"; -y skips the prompt; encrypted (LUKS2) unless -n
 ```
 
 It wipes the disk, makes one MBR partition with ext4, copies the running system,

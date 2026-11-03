@@ -12,3 +12,6 @@ notlfs tmux "WM" keys (Alt = Meta, no prefix; C-b prefix still works)
   Alt+e lf   Alt+b w3m   Alt+?  this help      mouse: click/drag/scroll
   Alt+w wifi (iwd)   yt <query>  YouTube via Invidious   tig  git browser
   theme day|night    light (Tokyo Night Day) / dark theme; boot: type "day" for light
+  Alt+Shift+x        PANIC: wipe LUKS keys, unmount, power off now
+  notlfs-vault create|open|close   encrypted LUKS2 file containers
+  notlfs-update      signed update over Tor (disk installs)

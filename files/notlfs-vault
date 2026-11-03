@@ -1,0 +1,32 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# notlfs-vault: LUKS2 (argon2id) file containers for private data.
+#   notlfs-vault create FILE SIZE_MB   make one (asks for a passphrase), ext4 inside
+#   notlfs-vault open FILE             unlock + mount at /mnt/vault-NAME
+#   notlfs-vault close [FILE|NAME]     unmount + lock (key wiped); no argument closes all
+#   notlfs-vault list
+set -e
+lo() { L=$(losetup -f) && losetup "$L" "$1" && echo "$L"; }  # BusyBox losetup has no --show
+nm() { b=${1##*/}; echo "vault-${b%.*}"; }
+close1() { umount "/mnt/$1" 2>/dev/null || true; L=$(cryptsetup status "$1" | sed -n 's/^ *device: *//p')
+  cryptsetup close "$1"; case $L in /dev/loop*) losetup -d "$L" 2>/dev/null || true;; esac; rmdir "/mnt/$1" 2>/dev/null || true; echo "closed $1"; }
+case $1 in
+create)
+  [ -n "$2" ] && [ -n "$3" ] && [ ! -e "$2" ] || { echo "usage: notlfs-vault create FILE SIZE_MB (FILE must not exist)"; exit 1; }
+  PK=$(cat /proc/sys/kernel/printk); echo 1 > /proc/sys/kernel/printk; trap 'echo "$PK" > /proc/sys/kernel/printk' EXIT  # loop on tmpfs: harmless WRITE_ZEROES noise
+  dd if=/dev/urandom of="$2" bs=1M count="$3" 2>/dev/null; chmod 600 "$2"
+  L=$(lo "$2") || exit 1
+  cryptsetup luksFormat -q --type luks2 --pbkdf argon2id --cipher aes-xts-plain64 --key-size 512 --verify-passphrase "$L" || { losetup -d "$L"; rm -f "$2"; exit 1; }
+  N=$(nm "$2"); cryptsetup open "$L" "$N"
+  mke2fs -q -t ext4 -E lazy_itable_init=0,lazy_journal_init=0 -L "$N" "/dev/mapper/$N"; close1 "$N"; echo "created $2: notlfs-vault open $2";;
+open)
+  [ -f "$2" ] || { echo "usage: notlfs-vault open FILE"; exit 1; }
+  N=$(nm "$2"); L=$(lo "$2") || exit 1
+  cryptsetup open --type luks2 "$L" "$N" || { losetup -d "$L"; exit 1; }
+  mkdir -p "/mnt/$N"; mount -o nodev,nosuid "/dev/mapper/$N" "/mnt/$N"; echo "open: /mnt/$N";;
+close)
+  if [ -n "$2" ]; then case $2 in vault-*) close1 "$2";; *) close1 "$(nm "$2")";; esac
+  else for m in /dev/mapper/vault-*; do [ -e "$m" ] && close1 "${m##*/}"; done; fi;;
+list) for m in /dev/mapper/vault-*; do [ -e "$m" ] && echo "${m##*/} -> /mnt/${m##*/}"; done; true;;
+*) sed -n '3,7s/^# //p' "$0"; exit 1;;
+esac

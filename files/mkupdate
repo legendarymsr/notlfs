@@ -1,0 +1,13 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# files/mkupdate SECKEY [OUTDIR]: pack build/rootfs + out/bzImage into notlfs-update.tar.xz and sign it
+# with signify (host tool: signify / signify-openbsd). Upload both files to the release (see docs/usage.md).
+set -e
+cd "$(dirname "$0")/.."; S=${1:?usage: files/mkupdate SECKEY [OUTDIR]}; O=${2:-out}
+SIG=$(command -v signify || command -v signify-openbsd)
+rm -rf build/upd && mkdir -p build/upd/boot && cp -a build/rootfs/. build/upd/ && cp out/bzImage build/upd/boot/
+rm -rf build/upd/dev/* build/upd/etc/fstab
+(cd build/upd && find . | LC_ALL=C sort | tar --no-recursion -cf - -T - --owner=0 --group=0) | xz -9 -T1 --check=crc32 > "$O/notlfs-update.tar.xz"
+rm -rf build/upd
+$SIG -S -s "$S" -m "$O/notlfs-update.tar.xz" -x "$O/notlfs-update.tar.xz.sig"
+echo "$O/notlfs-update.tar.xz{,.sig}"

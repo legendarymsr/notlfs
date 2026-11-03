@@ -499,6 +499,12 @@ mkdir -p rootfs/usr/share/syslinux rootfs/boot
 cp syslinux-6.03/bios/mbr/mbr.bin syslinux-6.03/bios/com32/menu/menu.c32 syslinux-6.03/bios/com32/libutil/libutil.c32 rootfs/usr/share/syslinux/
 cp "$TOP/files/notlfs-install" rootfs/sbin/ && chmod +x rootfs/sbin/notlfs-install
 cp cryptsetup-2.7.5/cryptsetup.static rootfs/sbin/cryptsetup && ${CROSS}strip -s rootfs/sbin/cryptsetup
+# encryption extras: panic key, encrypted swap (random key per boot), LUKS file vaults, signed updater
+cp "$TOP/files/panic" "$TOP/files/notlfs-cryptswap" "$TOP/files/notlfs-vault" "$TOP/files/notlfs-update" rootfs/sbin/
+chmod +x rootfs/sbin/panic rootfs/sbin/notlfs-cryptswap rootfs/sbin/notlfs-vault rootfs/sbin/notlfs-update
+mkdir -p rootfs/etc/notlfs && cp "$TOP/files/notlfs-update.pub" rootfs/etc/notlfs/update.pub
+${CROSS}gcc -Os -I$SYS/include "$TOP/files/src/sigverify.c" -o rootfs/usr/bin/sigverify -static -L$SYS/lib -lcrypto
+${CROSS}strip -s rootfs/usr/bin/sigverify
 # unlock initrd for encrypted installs (notlfs-install -e): just busybox, cryptsetup and a tiny /init
 rm -rf unlock && mkdir -p unlock/bin unlock/sbin unlock/dev unlock/proc unlock/sys unlock/run unlock/newroot
 cp busybox-$BUSYBOX/busybox unlock/bin/ && cp rootfs/sbin/cryptsetup unlock/sbin/ && cp "$TOP/files/unlock-init" unlock/init && chmod +x unlock/init
@@ -575,6 +581,11 @@ LABEL day
   LINUX /boot/bzImage
   INITRD /boot/initramfs.cpio.xz
   APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 lockdown=confidentiality slab_nomerge init_on_alloc=1 init_on_free=1 page_alloc.shuffle=1 pti=on randomize_kstack_offset=on vsyscall=none debugfs=off vt.default_red=225,245,88,140,46,152,0,55,97,255,92,162,53,164,0,55 vt.default_grn=226,42,117,108,125,84,113,96,114,71,133,118,138,99,126,96 vt.default_blu=231,101,57,62,233,241,151,191,176,116,36,41,255,255,168,191 notlfs.theme=day
+# amnesic: type 'amnesic' at the boot: prompt (RAM only, disks read-only, no swap)
+LABEL amnesic
+  LINUX /boot/bzImage
+  INITRD /boot/initramfs.cpio.xz
+  APPEND rdinit=/init console=tty1 console=ttyS0 loglevel=4 lockdown=confidentiality slab_nomerge init_on_alloc=1 init_on_free=1 page_alloc.shuffle=1 pti=on randomize_kstack_offset=on vsyscall=none debugfs=off vt.default_red=26,247,158,224,122,187,125,192,86,247,158,224,122,187,125,192 vt.default_grn=27,118,206,175,162,154,207,202,95,118,206,175,162,154,207,202 vt.default_blu=38,142,106,104,247,247,255,245,137,142,106,104,247,247,255,245 notlfs.amnesic
 CFG
 # deterministic ISO: all dates from SOURCE_DATE_EPOCH (xorriso reads it too), fixed volume UUID, no padding
 find iso -exec touch -h -d @$SOURCE_DATE_EPOCH {} +

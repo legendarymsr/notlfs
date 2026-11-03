@@ -1,0 +1,20 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# panic: forget every disk key and power off NOW. No questions (tmux: Alt+Shift+x).
+# Re-runs itself from RAM (/run) with its own busybox + cryptsetup, so it keeps going after the root's key is gone.
+R=/run/panic
+[ "$0" = $R/panic ] || { mkdir -p $R; mountpoint -q $R || mount -t tmpfs -o size=16m,mode=700 panic $R; cp /bin/busybox /sbin/cryptsetup $R/ 2>/dev/null; cp "$(command -v "$0" || echo /sbin/panic)" $R/panic; exec $R/busybox sh $R/panic; }
+B=$R/busybox; C=$R/cryptsetup
+$B swapoff -a 2>/dev/null
+# every mapping but the root: unmount, close (key wiped from the kernel)
+for m in /dev/mapper/*; do
+  n=${m##*/}; [ "$n" = control ] && continue
+  $B awk -v d="$m" '$1==d && $2=="/" {f=1} END {exit !f}' /proc/mounts && continue
+  $B awk -v d="$m" '$1==d {print $2}' /proc/mounts | while read -r p; do $B umount -f -l "$p"; done
+  $C close "$n" 2>/dev/null || $C luksSuspend "$n" 2>/dev/null
+done
+$B umount -f -l /boot 2>/dev/null; $B mount -o remount,ro / 2>/dev/null
+# what is left (the root): suspend = key wiped, I/O frozen
+for m in /dev/mapper/*; do n=${m##*/}; [ "$n" = control ] || $C luksSuspend "$n" 2>/dev/null; done
+echo 3 > /proc/sys/vm/drop_caches
+exec $B poweroff -f -n  # -n: no sync, it would block on the suspended root

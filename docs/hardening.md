@@ -71,9 +71,9 @@ loopback, DHCP replies, and rate-limited ICMP. **Port 22 is opened only while th
 dropbear service is enabled** — the early `/init` adds the `tcp dport 22 accept`
 rule only if dropbear isn't marked `down`.
 
-## Disk encryption (`notlfs-install -e`)
+## Disk encryption (`notlfs-install`, default)
 
-`notlfs-install -e /dev/sdX` makes a 128 MiB plain `/boot` partition and puts the
+`notlfs-install /dev/sdX` (encrypted unless you pass `-n`) makes a 128 MiB plain `/boot` partition and puts the
 root filesystem in a LUKS2 container (argon2id, aes-xts-plain64, 512-bit key).
 `/boot` holds the kernel and a ~1 MB unlock initrd (BusyBox + `cryptsetup` + a
 30-line `/init`, `files/unlock-init`) that asks for the passphrase, opens the root
@@ -85,6 +85,20 @@ chroots in, and closes it again on exit.
 the device-mapper library from LVM2 is built; no LVM tools, token plugins or docs.
 The kernel `/boot` is not encrypted, so this protects data at rest, not against
 someone tampering with the kernel on a stolen-and-returned laptop.
+
+## Encryption extras
+
+- **Swap:** `files/notlfs-cryptswap`: plain dm-crypt, aes-xts-plain64/512, key read from `/dev/urandom` at every boot and never
+  written anywhere. Skipped on amnesic boots.
+- **Vaults:** `files/notlfs-vault`: LUKS2/argon2id containers on a loop device, mounted nodev,nosuid.
+- **Panic:** `files/panic` (Alt+Shift+x). Order: copy busybox + cryptsetup into a private tmpfs and re-exec from there, swapoff,
+  unmount and `cryptsetup close` every non-root mapping, remount / ro, `luksSuspend` the root (dm-crypt drops the key), drop caches,
+  `poweroff -f -n` (`-n`: a sync would block forever on the suspended root). Takes ~3 s in QEMU. Keys of a *running* root must be
+  suspended, not closed, since it is still mounted; suspend wipes the key all the same. Cold-boot attacks on RAM right after power-off are out of scope.
+- **Amnesic boot:** `notlfs.amnesic` on the cmdline: rc.init skips `mount -a` and swap, and a 2-second loop sets every
+  non-loop/dm block device read-only (`blockdev --setro`). Mounting a disk then fails; writes give EPERM.
+- **Updates:** `files/notlfs-update` + `files/src/sigverify.c`. Download only through Tor (`torsocks curl`), signature checked
+  before anything is unpacked, tarball rejected if it has absolute or `..` paths.
 
 ## Intel ME / AMD PSP
 

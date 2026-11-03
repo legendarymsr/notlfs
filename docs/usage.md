@@ -3,7 +3,7 @@
 ## Booting
 
 Boot `out/notlfs.iso` (BIOS only), or boot a disk you installed to with
-`notlfs-install` (`notlfs-install -e /dev/sdX` for an encrypted root). In QEMU you can just use the included scripts:
+`notlfs-install` (encrypted root by default; `-n` for a plain one). Type `amnesic` at the ISO `boot:` prompt for a RAM-only boot that never writes to a disk. In QEMU you can just use the included scripts:
 
 ```sh
 ./run.sh        # serial console + tmux (default); Ctrl-A X quits QEMU
@@ -97,3 +97,32 @@ answers, shows results in an fzf picker, then streams the chosen video through m
   `mpv --vo=tct file` plays inline in any terminal (serial/ssh/tmux). Try
   `mpv --vo=drm av://lavfi:testsrc`.
 - **Wi-Fi:** iwd runs as a service; there's an fzf-based network picker.
+
+## Signed updates (`notlfs-update`)
+
+On a disk install: `notlfs-update` (asks before applying; `-y` doesn't). It downloads
+`notlfs-update.tar.xz` and `notlfs-update.tar.xz.sig` through Tor from
+`https://github.com/legendarymsr/notlfs/releases/latest/download` (override with `URL=` in
+`/etc/notlfs/update.conf` or as the first argument; `file:///path` works for offline media),
+verifies the signature with `sigverify` against `/etc/notlfs/update.pub`, and only then unpacks over `/`.
+Paths listed in `KEEP` (fstab, hostname, passwd/shadow/group, `/etc/notlfs`, `/root/.ssh`, iwd and Tor state)
+are never overwritten. A new `boot/bzImage` lands in `/boot`; reboot to use it.
+
+**Key:** the format is signify's (OpenBSD) Ed25519. The public key ships as `files/notlfs-update.pub`
+(→ `/etc/notlfs/update.pub`). The secret key is never in the repo; keep it offline. To make your own:
+
+```sh
+signify -G -p files/notlfs-update.pub -s ~/notlfs-update.sec   # Debian: signify-openbsd
+```
+
+**Release flow:**
+
+```sh
+./build.sh                                  # out/bzImage + build/rootfs
+files/mkupdate ~/notlfs-update.sec          # -> out/notlfs-update.tar.xz + .sig (signed with signify)
+signify -V -p files/notlfs-update.pub -m out/notlfs-update.tar.xz   # optional check
+# upload both files to the release
+```
+
+`/etc/notlfs` is never touched by updates, so a new key has to be copied to `/etc/notlfs/update.pub` by hand.
+

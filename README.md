@@ -48,6 +48,25 @@ Extras:
 - **No traces:** `HISTFILE=/dev/null`; on shutdown/reboot `rc.shutdown` stops the loggers and wipes `/var/log`, `/tmp`, shell/less/w3m history, catgirl logs.
 - **Generic identity:** hostname `localhost`; udhcpc sends no hostname, no client id and no vendor class.
 
+## Encryption
+
+- **Encrypted installs by default:** `notlfs-install /dev/sdX` = LUKS2, argon2id, aes-xts-plain64 (512-bit key) root, unlocked by a
+  tiny initrd. `-n` for an unencrypted disk.
+- **Encrypted swap:** installs get a 256 MiB `/swapfile` (`SWAPMB=` to change). `notlfs-cryptswap` (run by rc.init) opens it with plain
+  dm-crypt and a fresh key from `/dev/urandom` every boot; the key is never stored, so swap is garbage after power-off. A swap
+  partition works too: `SWAP=/dev/sdX3` in `/etc/notlfs/swap.conf`. `/tmp` is tmpfs (RAM), so anything of it that gets swapped out is encrypted too.
+- **Vaults:** `notlfs-vault create ~/private.img 512`, `notlfs-vault open ~/private.img` (mounts at `/mnt/vault-private`),
+  `notlfs-vault close` (all) / `notlfs-vault list`. LUKS2 argon2id file containers with ext4 inside.
+- **Panic:** `panic` or **Alt+Shift+x** in tmux, no confirmation: swapoff, unmount + close every LUKS mapping, remount / read-only,
+  `luksSuspend` the root (its key is wiped from kernel memory), drop caches, power off without syncing. Runs from a RAM copy of
+  busybox + cryptsetup so it does not stall on the now-locked root. Unsaved work is lost; that is the point.
+- **Amnesic boot:** type `amnesic` at the ISO's `boot:` prompt. The live system always runs entirely from RAM (the initramfs
+  *is* the system, the CD is never mounted); this entry also forces every disk read-only (also ones plugged in later), mounts
+  nothing and uses no swap. `notlfs-install`/`notlfs-update` refuse to run.
+- **Signed updates:** `notlfs-update` (disk installs) fetches `notlfs-update.tar.xz` + `.sig` through Tor, checks the signature with
+  `sigverify` (signify-compatible Ed25519, ~120 KB, on LibreSSL already in the tree) against `/etc/notlfs/update.pub`, then unpacks it
+  over `/`, never touching local config (fstab, passwd/shadow, `/etc/notlfs`, ssh keys, Wi-Fi, Tor state). See docs/usage.md for the key and release flow.
+
 ## v0.11: fixes, a few small tools
 
 - **Added** (static musl): fzf 0.74.5 (Go), ripgrep (`rg`), jq 1.7.1, ncdu 1.20, calcurse 4.8.1, sc-im 0.8.4 (no Lua/xlsx),
@@ -67,7 +86,8 @@ Extras:
   Root only, no other users. Source: `files/s6/`.
 - **ISO:** `out/notlfs.iso` is a hybrid ISO (isolinux 6.03), boots from CD or `dd` to a USB stick. **BIOS only** (no UEFI yet).
   `qemu-system-x86_64 -m 1G -cdrom out/notlfs.iso`
-- **Disk install:** boot the ISO, then `notlfs-install /dev/sda` (asks you to type `yes`; `-y` skips that). It wipes the disk, makes one
+- **Disk install:** boot the ISO, then `notlfs-install /dev/sda` (asks you to type `yes`; `-y` skips that). Encrypted by default
+  (LUKS2 argon2id root + small plain /boot, see Encryption below); `-n` gives the old plain layout: one
   MBR partition with ext4, copies the running system, puts the kernel in `/boot`, writes `/etc/fstab` (by PARTUUID) and installs
   extlinux + the syslinux MBR. BIOS boot only. No GRUB. Tools in the image: static `mke2fs` and `e2fsck` (e2fsprogs 1.47.1) and `extlinux`
   (syslinux 6.03, rebuilt static against musl), BusyBox `fdisk`.
@@ -109,7 +129,7 @@ and Rust with the musl target for newsboat: `rustup target add x86_64-unknown-li
 - sysctl (`files/sysctl.conf`): kptr/dmesg restrict, ptrace_scope=2, protected links/fifos, rp_filter, no redirects.
 - Userland: every C/C++ compile goes through `files/hardcc` (stack protector, clash protection, FORTIFY_SOURCE=2, static-pie, full RELRO).
 - Firewall: nftables default deny inbound; port 22 opens only while dropbear is enabled.
-- Disk encryption: `notlfs-install -e` makes a LUKS2 (argon2id) root with a tiny unlock initrd.
+- Disk encryption: `notlfs-install` makes a LUKS2 (argon2id) root with a tiny unlock initrd by default (`-n` for none).
 - dropbear: key-only logins, no password logins.
 - /tmp and /dev/shm are mounted nosuid,nodev,noexec.
 - Every service logs through s6-log to /var/log/<svc>.

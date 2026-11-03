@@ -1,0 +1,25 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# notlfs-update [-y] [URL]: fetch notlfs-update.tar.xz + .sig over Tor, check the signature against
+# /etc/notlfs/update.pub (signify Ed25519, via sigverify), then unpack it over / on a disk install.
+# The tarball holds files to replace (usr/, bin/, etc/... and boot/bzImage); local config in KEEP is never touched.
+set -e
+Y=; [ "$1" = -y ] && { Y=1; shift; }
+URL=https://github.com/legendarymsr/notlfs/releases/latest/download
+KEEP="etc/fstab etc/hostname etc/passwd etc/shadow etc/group etc/notlfs root/.ssh var/lib/iwd var/lib/tor"
+[ -f /etc/notlfs/update.conf ] && . /etc/notlfs/update.conf
+URL=${1:-$URL}
+[ -e /run/notlfs-amnesic ] && { echo "notlfs-update: amnesic boot, nothing to update"; exit 1; }
+case $(awk '$2=="/"{print $3}' /proc/mounts | tail -1) in rootfs|tmpfs|ramfs) echo "notlfs-update: live system (RAM); install to disk first"; exit 1;; esac
+W=$(mktemp -d /tmp/upd.XXXXXX); trap 'rm -rf "$W"' EXIT
+echo ">> fetching $URL (via Tor)"
+for f in notlfs-update.tar.xz notlfs-update.tar.xz.sig; do torsocks curl -fL --retry 2 -o "$W/$f" "$URL/$f"; done
+sigverify /etc/notlfs/update.pub "$W/notlfs-update.tar.xz.sig" "$W/notlfs-update.tar.xz"
+xz -dc "$W/notlfs-update.tar.xz" | tar -tf - > "$W/list"
+grep -qE '^/|(^|/)\.\.(/|$)' "$W/list" && { echo "notlfs-update: unsafe paths in tarball"; exit 1; }
+echo ">> $(wc -l < "$W/list") entries"
+[ -n "$Y" ] || { printf 'apply to / ? [y/N] '; read a; [ "$a" = y ]; }
+EX=; for k in $KEEP; do EX="$EX --exclude=./$k --exclude=$k"; done
+mountpoint -q /boot || mount /boot 2>/dev/null || true
+xz -dc "$W/notlfs-update.tar.xz" | tar -xf - -C / $EX
+sync; echo ">> updated. Reboot to use a new kernel."

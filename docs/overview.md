@@ -55,7 +55,7 @@ and all of that is deliberate.
   USB stick you `dd` it to. **BIOS boot only** (no UEFI yet).
 
 From a booted ISO you can install to disk with `notlfs-install /dev/sda`, which
-writes an ext4 root, installs extlinux + the syslinux MBR, and boots from the
+writes a LUKS2-encrypted ext4 root (`-n`: unencrypted), installs extlinux + the syslinux MBR, and boots from the
 disk thereafter.
 
 ## Licensing

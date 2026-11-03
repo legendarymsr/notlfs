@@ -2,8 +2,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # notlfs stage 2: one-shot setup. s6-svscan is already running the services in /run/service.
 # /proc /sys /dev/pts /dev/shm /tmp are mounted (nosuid,nodev,noexec) by /init
-mount -o remount,rw / 2>/dev/null
-mount -a 2>/dev/null
+# amnesic boot (boot: amnesic): the system already runs from RAM; every disk is forced read-only and nothing
+# is mounted or swapped, also for disks plugged in later. /tmp is tmpfs either way.
+if grep -qw notlfs.amnesic /proc/cmdline; then
+  : > /run/notlfs-amnesic
+  (while :; do for b in /sys/block/*; do case ${b##*/} in loop*|ram*|dm-*|zram*) ;; *) blockdev --setro /dev/${b##*/} 2>/dev/null;; esac; done; sleep 2; done) &
+  echo "notlfs: AMNESIC: running from RAM, disks read-only, nothing is written anywhere"
+else
+  mount -o remount,rw / 2>/dev/null
+  mount -a 2>/dev/null
+  notlfs-cryptswap
+fi
 mkdir -p /var/log /tmp
 hostname -F /etc/hostname
 ip link set lo up

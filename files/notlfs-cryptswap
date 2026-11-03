@@ -1,0 +1,12 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# notlfs-cryptswap: swap encrypted with a fresh random key every boot (plain dm-crypt, key from
+# /dev/urandom, never stored). What hits swap (tmpfs /tmp included) is unreadable after power-off.
+# SWAP= in /etc/notlfs/swap.conf: a partition or a file (the installer makes /swapfile). Run by rc.init.
+[ -e /run/notlfs-amnesic ] && exit 0
+SWAP=/swapfile; [ -f /etc/notlfs/swap.conf ] && . /etc/notlfs/swap.conf
+[ -e "$SWAP" ] || exit 0
+lo() { L=$(losetup -f) && losetup "$L" "$1" && echo "$L"; }  # BusyBox losetup has no --show
+D=$SWAP; [ -f "$SWAP" ] && D=$(lo "$SWAP")
+cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 --key-file /dev/urandom "$D" cryptswap || exit 1
+mkswap /dev/mapper/cryptswap >/dev/null && swapon /dev/mapper/cryptswap && echo "notlfs: encrypted swap on $SWAP (random key)"
