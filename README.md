@@ -30,7 +30,7 @@ tmux on the console acts like a small tiling WM (Tokyo Night themed; `Alt+?` sho
 Extras:
 - `ssh root@127.0.0.1 -p 2223` from the host (run.sh forwards it). Root has no password: put your key in `/root/.ssh/authorized_keys`. Host keys are generated on first connect.
 - `git clone https://...` works (curl + LibreSSL).
-- `catgirl libera`, `aerc` (starts the account wizard).
+- `catgirl oftc` (no login needed; `catgirl libera` needs SASL, see docs/usage.md), `aerc` (starts the account wizard).
 - `mpv --vo=drm file` plays video on the virtio-gpu display (QEMU window/screendump), e.g. `mpv --vo=drm av://lavfi:testsrc`. `--vo=tct` plays it in the terminal. No audio output.
 
 ## Privacy

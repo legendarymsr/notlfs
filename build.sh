@@ -465,7 +465,7 @@ cp -r stage-fc/etc/fonts rootfs/etc/ && cp -r stage-fc/usr/share/fontconfig root
 get https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.tar.bz2 dejavu-fonts-ttf-2.37
 cp dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono.ttf dejavu-fonts-ttf-2.37/LICENSE rootfs/usr/share/fonts/
 cp "$TOP/files/mpv.conf" rootfs/etc/mpv/mpv.conf
-mkdir -p rootfs/etc/xdg/catgirl && cp "$TOP/files/catgirl.conf" rootfs/etc/xdg/catgirl/libera && mkdir -p rootfs/root/.local/share/catgirl  # catgirl does not create its save/log dir
+mkdir -p rootfs/etc/xdg/catgirl && cp "$TOP/files/catgirl.conf" rootfs/etc/xdg/catgirl/libera && cp "$TOP/files/catgirl-oftc.conf" rootfs/etc/xdg/catgirl/oftc && mkdir -p rootfs/root/.local/share/catgirl  # catgirl does not create its save/log dir
 chmod +x rootfs/bin/tui rootfs/usr/share/udhcpc/default.script
 echo 'root:x:0:0:root:/root:/bin/sh' > rootfs/etc/passwd
 echo 'root:*:0:0:99999:7:::' > rootfs/etc/shadow

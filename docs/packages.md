@@ -55,7 +55,7 @@ authoritative list.
 | --- | --- | --- |
 | w3m | 0.5.3+git20230121 | terminal web browser, HTTPS via LibreSSL |
 | aerc | 0.20.1 | email client (Go); starts an account wizard |
-| catgirl | 2.2a | IRC client (TLS via LibreSSL libtls; config in /etc/xdg/catgirl/libera) |
+| catgirl | 2.2a | IRC client (TLS via LibreSSL libtls; configs in /etc/xdg/catgirl/oftc and libera) |
 | newsboat | 2.41 | RSS/Atom reader (Rust, musl target) |
 
 ## Media

@@ -76,9 +76,14 @@ answers, shows results in an fzf picker, then streams the chosen video through m
 ## Email, IRC, SSH
 
 - **Email:** `aerc` — on first run it starts the account-setup wizard.
-- **IRC:** `catgirl libera` connects to irc.libera.chat over TLS. Set your nick in a copy of
-  `/etc/xdg/catgirl/libera` at `~/.config/catgirl/libera` (nick, join and SASL lines are there, commented out).
-  Nick colors use the 16 console colors, so they follow the Tokyo Night palette. `/help` opens the manual.
+- **IRC:** `catgirl oftc` connects to irc.oftc.net over TLS and needs no account or SASL, so it works out of
+  the box (then `/join #oftc`). `catgirl libera` connects to irc.libera.chat, which often requires SASL
+  (Tor, VPNs and some ISPs are refused without it). Register a nick with Libera, then use SASL PLAIN:
+  `catgirl -a nick: libera` (blank password prompts) or `sasl-plain = nick:password` in the config; or CertFP:
+  `catgirl -g cert.pem` generates a certificate, then `cert = cert.pem` plus `sasl-external` (`-e`) logs in with it.
+  `-w` is the plain server password, not SASL. Copy `/etc/xdg/catgirl/oftc` or `libera` to `~/.config/catgirl/`
+  and set `nick` and `join`. Without a config file, `catgirl -h irc.oftc.net -n yournick` also works
+  (see `catgirl(1)` or `/help`). Nick colors use the 16 console colors, so they follow the Tokyo Night palette.
 - **Volume:** the tmux bar shows `vol 45%` or `muted` (nothing on machines without a sound card).
   `prefix +` (or `=`) raises it 5%, `prefix _` lowers it 5%, `prefix m` toggles mute. From a shell:
   `vol up`, `vol down`, `vol mute`, `vol`. It drives the ALSA `Master` control (`PCM` if there is none).
