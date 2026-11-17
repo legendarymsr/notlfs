@@ -1,7 +1,9 @@
 # privacy: no shell history on disk (kept in memory for the session only)
 export HISTFILE=/dev/null
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin HOME=/root LANG=C.UTF-8 EDITOR=vis VISUAL=vis
-[ -n "$TMUX" ] || export TERM=xterm-256color
+# VT (tty1/tty2): TERM=linux, so tmux and `clear` speak what the Linux console understands (xterm-256color left the screen uncleared);
+# serial and ssh keep xterm-256color; inside tmux TERM stays tmux-256color
+case $(tty 2>/dev/null) in /dev/tty[0-9]*) export TERM=linux;; *) [ -n "$TMUX" ] || export TERM=xterm-256color;; esac
 # Tokyo Night: prompt, fzf, ls/grep (colors are ANSI indices; the VT palette makes them Tokyo Night)
 E=$(printf '\033'); PS1="\[$E[35m\]\u\[$E[90m\]@\[$E[34m\]\h \[$E[36m\]\w \[$E[32m\]#\[$E[0m\] "; unset E
 export FZF_DEFAULT_OPTS='--layout=reverse --border=sharp --height=60% --prompt="» " --pointer="▶" --marker="+" --info=inline-right --preview-window=right,55%,border-left --color=fg:-1,bg:-1,hl:blue,fg+:white,bg+:black,hl+:cyan,info:yellow,prompt:magenta,pointer:magenta,marker:green,spinner:cyan,header:bright-black,border:bright-black,gutter:-1'

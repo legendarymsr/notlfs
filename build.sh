@@ -545,6 +545,8 @@ cat > rootfs/etc/os-release <<'OS'
 NAME=notlfs
 ID=notlfs
 PRETTY_NAME="notlfs (not Linux From Scratch)"
+VERSION=0.12
+VERSION_ID=0.12
 OS
 
 # Tokyo Night configs (user dotfiles for root, vis/aerc themes, ncdu.conf)

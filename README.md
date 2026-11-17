@@ -67,6 +67,19 @@ Extras:
   `sigverify` (signify-compatible Ed25519, ~120 KB, on LibreSSL already in the tree) against `/etc/notlfs/update.pub`, then unpacks it
   over `/`, never touching local config (fstab, passwd/shadow, `/etc/notlfs`, ssh keys, Wi-Fi, Tor state). See docs/usage.md for the key and release flow.
 
+## v0.12: first release since v0.11
+
+v0.11 was cut on 2026-10-30 and nothing was tagged after it, so its ISO predates everything below. v0.12 is `master` as built.
+
+- **Disk encryption:** `notlfs-install /dev/sdX` is encrypted by default (LUKS2 argon2id root, small plain `/boot`); `-n` gives the plain ext4 layout.
+- **Amnesic boot:** type `amnesic` at the ISO's `boot:` prompt (RAM only, disks read-only, no swap).
+- **Privacy and hardening:** Tor + `torsocks`/`tor-route`, unbound DNS-over-TLS, `.onion` out of the box, `panic`, random-key encrypted swap, LUKS vaults,
+  signed `notlfs-update` over Tor, hardened boot cmdline and mounts, default-deny firewall.
+- **In the image:** `curl` (static, musl; LibreSSL), `git`, catgirl (replaces irssi), tig, iwd Wi-Fi, ffmpeg, `yt`, rescue tools (`notlfs-chroot`, `hwcheck`), Tokyo Night / Day themes.
+- **Fix:** `clear` on tty1/tty2. `/etc/profile` forced `TERM=xterm-256color` on the Linux console; it now sets `TERM=linux` on virtual terminals
+  (serial and ssh keep xterm-256color, tmux keeps tmux-256color).
+- `/etc/os-release` carries `VERSION=0.12`.
+
 ## v0.11: fixes, a few small tools
 
 - **Added** (static musl): fzf 0.74.5 (Go), ripgrep (`rg`), jq 1.7.1, ncdu 1.20, calcurse 4.8.1, sc-im 0.8.4 (no Lua/xlsx),
